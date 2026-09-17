@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+@SuppressWarnings("unused")
 @Autonomous(name = "Drive in 1m Square Box", group = "Linear OpMode")
 public class SquareDriveOpMode extends LinearOpMode {
 
@@ -14,7 +15,7 @@ public class SquareDriveOpMode extends LinearOpMode {
     private DcMotor motorRearLeft   = null;
     private DcMotor motorRearRight  = null;
 
-    private ElapsedTime runtime = new ElapsedTime();
+    private final ElapsedTime runtime = new ElapsedTime();
 
     // Adjust these timing estimates based on your robot weight, battery level, and wheel grip!
     // Approximately how long it takes to move 1 meter forward at 40% power

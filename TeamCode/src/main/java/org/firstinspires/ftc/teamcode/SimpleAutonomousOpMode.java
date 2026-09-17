@@ -3,9 +3,9 @@ package org.firstinspires.ftc.teamcode;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+@SuppressWarnings("unused")
 @Autonomous(name = "Simple Autonomous Test", group = "Linear OpMode")
 public class SimpleAutonomousOpMode extends LinearOpMode {
 
@@ -21,7 +21,7 @@ public class SimpleAutonomousOpMode extends LinearOpMode {
     private DcMotor motorRearLeft   = null;
     private DcMotor motorRearRight  = null;
 
-    private ElapsedTime runtime = new ElapsedTime();
+    private final ElapsedTime runtime = new ElapsedTime();
 
     @Override
     public void runOpMode() {
