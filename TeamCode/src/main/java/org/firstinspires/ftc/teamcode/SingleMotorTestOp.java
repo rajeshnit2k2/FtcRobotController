@@ -5,8 +5,8 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
 
-@TeleOp(name = "Simple Motor OpMode", group = "Linear OpMode")
-public class SimpleMotorOpMode extends LinearOpMode {
+@TeleOp(name = "Single Motor OpMode", group = "Linear OpMode")
+public class SingleMotorTestOp extends LinearOpMode {
 
     // Declare motor objects
     private DcMotor leftDrive = null;
@@ -17,12 +17,12 @@ public class SimpleMotorOpMode extends LinearOpMode {
         // Initialize the hardware variables. Note that the strings used here as parameters
         // to 'get' must correspond to the names assigned during the robot configuration
         // step on the FTC Driver Station / Robot Controller.
-        leftDrive  = hardwareMap.get(DcMotor.class, "left_drive");
-        rightDrive = hardwareMap.get(DcMotor.class, "right_drive");
+        leftDrive  = hardwareMap.get(DcMotor.class, "test_motor");
+       // rightDrive = hardwareMap.get(DcMotor.class, "right_drive");
 
         // Most robots need the motor on one side to be reversed to drive forward
         leftDrive.setDirection(DcMotor.Direction.REVERSE);
-        rightDrive.setDirection(DcMotor.Direction.FORWARD);
+        //rightDrive.setDirection(DcMotor.Direction.FORWARD);
 
         telemetry.addData("Status", "Initialized. Ready to start!");
         telemetry.update();
@@ -41,7 +41,7 @@ public class SimpleMotorOpMode extends LinearOpMode {
 
             // Set power to the motors
             leftDrive.setPower(leftPower);
-            rightDrive.setPower(rightPower);
+            //rightDrive.setPower(rightPower);
 
             // Send telemetry messages to the Driver Station
             telemetry.addData("Status", "Running");
@@ -50,3 +50,4 @@ public class SimpleMotorOpMode extends LinearOpMode {
         }
     }
 }
+

@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 @SuppressWarnings("unused")
-@Autonomous(name = "Drive in 1m Square Box", group = "Linear OpMode")
+//@Autonomous(name = "Drive in 1m Square Box", group = "Linear OpMode")
 public class SquareDriveOpMode extends LinearOpMode {
 
     // Define wheels on the Control Hub

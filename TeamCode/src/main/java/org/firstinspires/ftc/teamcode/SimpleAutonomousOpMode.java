@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 @SuppressWarnings("unused")
-@Autonomous(name = "Simple Autonomous Test", group = "Linear OpMode")
+//@Autonomous(name = "Simple Autonomous Test", group = "Linear OpMode")
 public class SimpleAutonomousOpMode extends LinearOpMode {
 
     // Expansion Hub Motors (4 Drive Motors)
@@ -64,10 +64,10 @@ public class SimpleAutonomousOpMode extends LinearOpMode {
             runSingleMotorDiagnostic("leftBackEx (left_back_drive)", leftBackEx);
         }
         if (opModeIsActive()) {
-            runSingleMotorDiagnostic("rightFrontEx (right_front_drive)", rightFrontEx);
+            runSingleMotorDiagnosticSpecialShooter("rightFrontEx (right_front_drive)", rightFrontEx);
         }
         if (opModeIsActive()) {
-            runSingleMotorDiagnostic("rightBackEx (right_back_drive)", rightBackEx);
+            runSingleMotorDiagnosticSpecialShooter("rightBackEx (right_back_drive)", rightBackEx);
         }
 
         // =======================================================
@@ -96,11 +96,18 @@ public class SimpleAutonomousOpMode extends LinearOpMode {
     /**
      * Helper method to isolate and run a single motor for diagnostic testing.
      */
-    private void runSingleMotorDiagnostic(String motorName, DcMotor motor) {
+    private void runSingleMotorDiagnosticSpecialShooter(String motorName, DcMotor motor) {
         runtime.reset();
         
         // Command only this motor to move
-        motor.setPower(0.4);
+        motor.setPower(0.2);
+        sleep(5000);
+        motor.setPower(1.0);
+        sleep(5000);
+        motor.setPower(1.0);
+        sleep(5000);
+        motor.setPower(1.0);
+        sleep(5000);
         
         while (opModeIsActive() && (runtime.seconds() < 2.0)) {
             telemetry.addData("DIAGNOSTIC ACTIVE", "Testing single motor...");
@@ -109,6 +116,24 @@ public class SimpleAutonomousOpMode extends LinearOpMode {
             telemetry.update();
         }
         
+        // Stop it before moving to the next step
+        motor.setPower(0);
+        sleep(500); // 0.5 second pause between steps
+    }
+
+    private void runSingleMotorDiagnostic(String motorName, DcMotor motor) {
+        runtime.reset();
+
+        // Command only this motor to move
+        motor.setPower(0.4);
+
+        while (opModeIsActive() && (runtime.seconds() < 2.0)) {
+            telemetry.addData("DIAGNOSTIC ACTIVE", "Testing single motor...");
+            telemetry.addData("Testing Now", motorName);
+            telemetry.addData("Time Remaining", "%.1f s", 2.0 - runtime.seconds());
+            telemetry.update();
+        }
+
         // Stop it before moving to the next step
         motor.setPower(0);
         sleep(500); // 0.5 second pause between steps
