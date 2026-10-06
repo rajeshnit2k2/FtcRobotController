@@ -47,7 +47,7 @@ public class SimpleAutonomousOpMode extends LinearOpMode {
         motorFrontRight.setDirection(DcMotor.Direction.FORWARD);
         motorRearLeft.setDirection(DcMotor.Direction.FORWARD);
         motorRearRight.setDirection(DcMotor.Direction.FORWARD);
-
+//This line below will appear in driver hub if you wondering.
         telemetry.addData("Status", "Diagnostic Setup: Ready to test each motor one by one");
         telemetry.update();
 
