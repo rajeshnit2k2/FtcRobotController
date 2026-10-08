@@ -1,0 +1,189 @@
+package org.firstinspires.ftc.teamcode;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+/**
+ * BIOBUZZ (2026-2027) Autonomous for the REV DUO FTC Starter Bot. Runs in the 30 second AUTO period.
+ *
+ * Plan:
+ *   1. (Optional) wait a few seconds so we don't collide with our alliance partner.
+ *   2. LAUNCH the 4 pre-loaded POLLEN into our upward-facing CELL (counts toward a HIVE TIP, 20 pts).
+ *   3. Drive off the wall for LEAVE (3 pts).
+ *   4. (Optional) turn and drive into our LOADING ZONE for PARK (5 pts).
+ *
+ * Setup (G304): place the robot on your own half of the FIELD, touching the perimeter wall, outside the
+ * LOADING ZONE, touching its 4 pre-loaded POLLEN, with the launcher aimed at your alliance's upward-facing CELL.
+ *
+ * During INIT, use gamepad1 to choose options (shown on the Driver Station):
+ *   X = BLUE alliance, B = RED alliance
+ *   D-pad up/down    = start delay +/- 1 second
+ *   D-pad left/right = PARK leg off/on
+ *
+ * Driving here is time-based, so tune the *_SECONDS constants on a practice field for your start spot.
+ */
+@Autonomous(name = "BIOBUZZ Auto", group = "BIOBUZZ", preselectTeleOp = "BIOBUZZ TeleOp")
+public class BiobuzzAuto extends LinearOpMode {
+
+    // Launcher settings, shared with TeleOp so both shoot the same
+    static final double FLYWHEEL_TARGET_VELOCITY = BiobuzzTeleOp.FLYWHEEL_TARGET_VELOCITY;
+    static final double FLYWHEEL_READY_TOLERANCE = BiobuzzTeleOp.FLYWHEEL_READY_TOLERANCE;
+    static final double FLYWHEEL_SPINUP_TIMEOUT_SECONDS = 3.0;
+    // Long enough to push all 4 pre-loads through the launcher
+    static final double FEED_SECONDS = 4.0;
+
+    // LEAVE: drive straight away from the wall
+    static final double LEAVE_POWER   = 0.5;
+    static final double LEAVE_SECONDS = 0.8;
+
+    // PARK: turn toward the LOADING ZONE, then drive into it. Mirrored automatically for RED vs BLUE.
+    static final double TURN_POWER        = 0.4;
+    static final double PARK_TURN_SECONDS  = 0.6;
+    static final double PARK_DRIVE_SECONDS = 1.5;
+    // +1 turns right on BLUE (left on RED). Flip to -1 if the robot turns the wrong way from your start spot.
+    static final int BLUE_TURN_DIRECTION = 1;
+
+    static final int MAX_START_DELAY_SECONDS = 15;
+
+    private DcMotor   leftDrive;
+    private DcMotor   rightDrive;
+    private DcMotor   intakeMotor;
+    private DcMotorEx flywheel;
+    private CRServo   feeder;
+
+    private boolean isBlue = true;
+    private boolean parkEnabled = true;
+    private int startDelaySeconds = 0;
+
+    private final ElapsedTime timer = new ElapsedTime();
+
+    @Override
+    public void runOpMode() {
+        initHardware();
+        selectOptions();
+
+        // selectOptions() returns on START or STOP; bail out if it was STOP
+        if (!opModeIsActive()) {
+            return;
+        }
+
+        waitSeconds(startDelaySeconds);
+        launchPreloads();
+        drive(LEAVE_POWER, LEAVE_POWER, LEAVE_SECONDS);
+
+        if (parkEnabled) {
+            int turnDirection = isBlue ? BLUE_TURN_DIRECTION : -BLUE_TURN_DIRECTION;
+            drive(TURN_POWER * turnDirection, -TURN_POWER * turnDirection, PARK_TURN_SECONDS);
+            drive(LEAVE_POWER, LEAVE_POWER, PARK_DRIVE_SECONDS);
+        }
+
+        stopAll();
+        telemetry.addData("Status", "AUTO complete");
+        telemetry.update();
+    }
+
+    private void initHardware() {
+        leftDrive   = hardwareMap.get(DcMotor.class, "leftDrive");
+        rightDrive  = hardwareMap.get(DcMotor.class, "rightDrive");
+        intakeMotor = hardwareMap.get(DcMotor.class, "intakeMotor");
+         flywheel    = hardwareMap.get(DcMotorEx.class, "flywheel");
+        feeder      = hardwareMap.get(CRServo.class, "crServo");
+
+        // Keep these in sync with BiobuzzTeleOp
+        leftDrive.setDirection(DcMotor.Direction.REVERSE);
+        rightDrive.setDirection(DcMotor.Direction.FORWARD);
+        intakeMotor.setDirection(DcMotor.Direction.FORWARD);
+        flywheel.setDirection(DcMotor.Direction.FORWARD);
+        feeder.setDirection(DcMotorSimple.Direction.FORWARD);
+
+        leftDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        rightDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
+        flywheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+    }
+
+    /** Lets the drive team pick alliance, delay and park while waiting for START. Robot stays still (G304.H). */
+    private void selectOptions() {
+        boolean lastUp = false, lastDown = false;
+
+        while (!isStarted() && !isStopRequested()) {
+            if (gamepad1.x) isBlue = true;
+            if (gamepad1.b) isBlue = false;
+            if (gamepad1.dpad_left)  parkEnabled = false;
+            if (gamepad1.dpad_right) parkEnabled = true;
+
+            // Only count a press once, not every loop it is held
+            if (gamepad1.dpad_up && !lastUp) {
+                startDelaySeconds = Math.min(MAX_START_DELAY_SECONDS, startDelaySeconds + 1);
+            }
+            if (gamepad1.dpad_down && !lastDown) {
+                startDelaySeconds = Math.max(0, startDelaySeconds - 1);
+            }
+            lastUp = gamepad1.dpad_up;
+            lastDown = gamepad1.dpad_down;
+
+            telemetry.addLine("Select with gamepad1, then press START");
+            telemetry.addData("Alliance (X blue / B red)", isBlue ? "BLUE" : "RED");
+            telemetry.addData("Start delay (dpad up/down)", "%d s", startDelaySeconds);
+            telemetry.addData("Park (dpad left/right)", parkEnabled ? "ON" : "OFF");
+            telemetry.update();
+        }
+    }
+
+    private void launchPreloads() {
+        // Spin up and wait until the flywheel is at speed (or give up after the timeout and shoot anyway)
+        flywheel.setVelocity(FLYWHEEL_TARGET_VELOCITY);
+        timer.reset();
+        while (opModeIsActive() && timer.seconds() < FLYWHEEL_SPINUP_TIMEOUT_SECONDS
+                && Math.abs(flywheel.getVelocity() - FLYWHEEL_TARGET_VELOCITY) > FLYWHEEL_READY_TOLERANCE) {
+            telemetry.addData("Step", "Spinning up flywheel");
+            telemetry.addData("Flywheel", "%.0f / %.0f ticks/s", flywheel.getVelocity(), FLYWHEEL_TARGET_VELOCITY);
+            telemetry.update();
+        }
+
+        feeder.setPower(BiobuzzTeleOp.FEEDER_POWER);
+        if (BiobuzzTeleOp.RUN_INTAKE_WHILE_FEEDING) {
+            intakeMotor.setPower(BiobuzzTeleOp.INTAKE_POWER);
+        }
+        timer.reset();
+        while (opModeIsActive() && timer.seconds() < FEED_SECONDS) {
+            telemetry.addData("Step", "Launching pre-loads");
+            telemetry.addData("Flywheel", "%.0f / %.0f ticks/s", flywheel.getVelocity(), FLYWHEEL_TARGET_VELOCITY);
+            telemetry.update();
+        }
+
+        feeder.setPower(0);
+        intakeMotor.setPower(0);
+        flywheel.setPower(0);
+    }
+
+    private void drive(double leftPower, double rightPower, double seconds) {
+        leftDrive.setPower(leftPower);
+        rightDrive.setPower(rightPower);
+        waitSeconds(seconds);
+        leftDrive.setPower(0);
+        rightDrive.setPower(0);
+    }
+
+    private void waitSeconds(double seconds) {
+        timer.reset();
+        while (opModeIsActive() && timer.seconds() < seconds) {
+            idle();
+        }
+    }
+
+    private void stopAll() {
+        leftDrive.setPower(0);
+        rightDrive.setPower(0);
+        intakeMotor.setPower(0);
+        flywheel.setPower(0);
+        feeder.setPower(0);
+    }
+}
