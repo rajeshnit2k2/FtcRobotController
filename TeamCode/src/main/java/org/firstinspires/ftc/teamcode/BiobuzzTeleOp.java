@@ -150,7 +150,7 @@ public class BiobuzzTeleOp extends LinearOpMode {
         }
 
         // ---------------- Intake ----------------
-        if (gamepad1.right_trigger > 0.2) {
+        if (gamepad1.right_trigger > 1.0) {
             intakeMotor.setPower(-INTAKE_POWER);
         } else if (gamepad1.right_bumper || (feeding && RUN_INTAKE_WHILE_FEEDING)) {
             intakeMotor.setPower(INTAKE_POWER);
