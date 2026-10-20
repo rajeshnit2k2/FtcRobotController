@@ -7,21 +7,15 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 @TeleOp(name = "Mecanum Drive OpMode", group = "Linear OpMode")
 public class MecanumDriveOpMode extends LinearOpMode {
 
-    // Control Hub drive motors
-    private DcMotor motorFrontLeft  = null;
-    private DcMotor motorFrontRight = null;
-    private DcMotor motorRearLeft   = null;
-    private DcMotor motorRearRight  = null;
-
     // Caps the drive output so full joystick deflection is 60% power
     private static final double MAX_SPEED = 0.6;
 
     @Override
     public void runOpMode() {
-        motorFrontLeft  = hardwareMap.get(DcMotor.class, "motorFrontLeft");
-        motorFrontRight = hardwareMap.get(DcMotor.class, "motorFrontRight");
-        motorRearLeft   = hardwareMap.get(DcMotor.class, "motorRearLeft");
-        motorRearRight  = hardwareMap.get(DcMotor.class, "motorRearRight");
+        DcMotor motorFrontLeft  = hardwareMap.get(DcMotor.class, "motorFrontLeft");
+        DcMotor motorFrontRight = hardwareMap.get(DcMotor.class, "motorFrontRight");
+        DcMotor motorRearLeft   = hardwareMap.get(DcMotor.class, "motorRearLeft");
+        DcMotor motorRearRight  = hardwareMap.get(DcMotor.class, "motorRearRight");
 
         // Set directions so pushing positive power moves the wheels forward
         motorFrontLeft.setDirection(DcMotor.Direction.REVERSE);

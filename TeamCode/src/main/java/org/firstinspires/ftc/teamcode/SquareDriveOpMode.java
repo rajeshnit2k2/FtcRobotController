@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -10,10 +9,10 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 public class SquareDriveOpMode extends LinearOpMode {
 
     // Define wheels on the Control Hub
-    private DcMotor motorFrontLeft  = null;
-    private DcMotor motorFrontRight = null;
-    private DcMotor motorRearLeft   = null;
-    private DcMotor motorRearRight  = null;
+    private DcMotor motorFrontLeft;
+    private DcMotor motorFrontRight;
+    private DcMotor motorRearLeft;
+    private DcMotor motorRearRight;
 
     private final ElapsedTime runtime = new ElapsedTime();
 

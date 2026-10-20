@@ -30,21 +30,16 @@ public class AllMotorTestOp extends LinearOpMode {
     // Caps the output so full joystick / trigger deflection is 60% power
     private static final double MAX_SPEED = 1.0;
 
-    private DcMotor motorFrontLeft  = null;
-    private DcMotor motorFrontRight = null;
-    private DcMotor motorRearLeft   = null;
-    private DcMotor motorRearRight  = null;
-
     // Every motor in the configuration that is not a drive motor
     private final List<String>  otherNames  = new ArrayList<>();
     private final List<DcMotor> otherMotors = new ArrayList<>();
 
     @Override
     public void runOpMode() {
-        motorFrontLeft  = hardwareMap.get(DcMotor.class, FRONT_LEFT);
-        motorFrontRight = hardwareMap.get(DcMotor.class, FRONT_RIGHT);
-        motorRearLeft   = hardwareMap.get(DcMotor.class, REAR_LEFT);
-        motorRearRight  = hardwareMap.get(DcMotor.class, REAR_RIGHT);
+        DcMotor motorFrontLeft  = hardwareMap.get(DcMotor.class, FRONT_LEFT);
+        DcMotor motorFrontRight = hardwareMap.get(DcMotor.class, FRONT_RIGHT);
+        DcMotor motorRearLeft   = hardwareMap.get(DcMotor.class, REAR_LEFT);
+        DcMotor motorRearRight  = hardwareMap.get(DcMotor.class, REAR_RIGHT);
 
         // Set directions so pushing positive power moves the wheels forward
         motorFrontLeft.setDirection(DcMotor.Direction.REVERSE);

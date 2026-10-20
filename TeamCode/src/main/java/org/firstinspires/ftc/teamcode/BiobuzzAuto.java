@@ -58,7 +58,7 @@ public class BiobuzzAuto extends LinearOpMode {
 
     private boolean isBlue = true;
     private boolean parkEnabled = true;
-    private int startDelaySeconds = 0;
+    private int startDelaySeconds;
 
     private final ElapsedTime timer = new ElapsedTime();
 
@@ -107,7 +107,7 @@ public class BiobuzzAuto extends LinearOpMode {
 
         flywheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-    }https://claude.ai/artifact/LeZVopPetNjF6Yj3uQ5orA
+    }
 
     /** Lets the drive team pick alliance, delay and park while waiting for START. Robot stays still (G304.H). */
     private void selectOptions() {

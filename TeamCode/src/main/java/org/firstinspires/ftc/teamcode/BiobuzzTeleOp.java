@@ -82,7 +82,7 @@ public class BiobuzzTeleOp extends LinearOpMode {
         // Flip any of these if that mechanism runs backwards
         leftDrive.setDirection(DcMotor.Direction.REVERSE);
         rightDrive.setDirection(DcMotor.Direction.FORWARD);
-        intakeMotor.setDirection(DcMotor.Direction.FORWARD);
+        intakeMotor.setDirection(DcMotor.Direction.REVERSE);
         flywheel.setDirection(DcMotor.Direction.FORWARD);
         feeder.setDirection(DcMotorSimple.Direction.FORWARD);
 

@@ -8,17 +8,13 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 @TeleOp(name = "Simple Motor OpMode", group = "Linear OpMode")
 public class SimpleMotorOpMode extends LinearOpMode {
 
-    // Declare motor objects
-    private DcMotor leftDrive = null;
-    private DcMotor rightDrive = null;
-
     @Override
     public void runOpMode() {
         // Initialize the hardware variables. Note that the strings used here as parameters
         // to 'get' must correspond to the names assigned during the robot configuration
         // step on the FTC Driver Station / Robot Controller.
-        leftDrive  = hardwareMap.get(DcMotor.class, "left_drive");
-        rightDrive = hardwareMap.get(DcMotor.class, "right_drive");
+        DcMotor leftDrive  = hardwareMap.get(DcMotor.class, "left_drive");
+        DcMotor rightDrive = hardwareMap.get(DcMotor.class, "right_drive");
 
         // Most robots need the motor on one side to be reversed to drive forward
         leftDrive.setDirection(DcMotor.Direction.REVERSE);
