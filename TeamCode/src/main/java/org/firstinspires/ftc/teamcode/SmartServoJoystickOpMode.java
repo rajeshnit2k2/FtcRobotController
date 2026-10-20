@@ -34,13 +34,11 @@ public class SmartServoJoystickOpMode extends LinearOpMode {
     // REV Smart Robot Servo's usable position range (0.0 to 1.0) maps to about 300 degrees
     private static final double SERVO_DEGREES_RANGE = 300.0;
 
-    private Servo servo = null;
-
     @Override
     public void runOpMode() {
         // Initialize the hardware variable. The name here must match the servo's name
         // in the robot configuration on the Driver Station / Robot Controller.
-        servo = hardwareMap.get(Servo.class, SERVO_NAME);
+        Servo servo = hardwareMap.get(Servo.class, SERVO_NAME);
 
         // Start centered so the first loop has a known, safe position
         double servoPosition = 0.5;

@@ -26,9 +26,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *   Left stick      - arcade drive (Y = forward/back, X = turn)
  *   Left bumper     - launch: spin up flywheel, then feed once it is at speed
  *   Right bumper    - intake POLLEN
- *   Right trigger   - outtake (reverse intake)
  *   Y               - spin flywheel only (pre-spin before you line up)
- *   X               - reverse flywheel at half power (clear a jam)
  *   D-pad up/down   - run feeder forward/reverse manually
  *   A / B           - pollen poker down / up
  *   Left trigger    - hold for slow, precise driving
@@ -46,13 +44,16 @@ public class BiobuzzTeleOp extends LinearOpMode {
     // Also run the intake while feeding, to push POLLEN up into the feeder
     static final boolean RUN_INTAKE_WHILE_FEEDING = true;
 
-    // Pollen poker positions (0.0 to 1.0). Tune to how the servo is mounted.
+    // Pollen poker travel is capped at POKER_MAX_DEGREES. REV Smart Robot Servo default range is 270 degrees.
+    static final double SERVO_RANGE_DEGREES = 270;
+    static final double POKER_MAX_DEGREES   = 90;
+    // Poker positions (0.0 to 1.0) within the capped range: 0.0 = 0 degrees, 1.0 = 90 degrees
     static final double POKER_DOWN = 0.0;
-    static final double POKER_UP   = 0.6;
+    static final double POKER_UP   = 0.90;
 
     static final double DRIVE_MAX_SPEED  = 1.0;
     static final double DRIVE_SLOW_SPEED = 0.35;
-    static final double STICK_DEADZONE   = 0.05;
+    static final double STICK_DEADZONE   = 0.5;
 
     static final double TELEOP_SECONDS = 120;
     static final double FLOWER_NECTAR_ALLOWED_SECONDS_LEFT = 60;
@@ -75,11 +76,13 @@ public class BiobuzzTeleOp extends LinearOpMode {
         flywheel    = hardwareMap.get(DcMotorEx.class, "flywheel");
         feeder      = hardwareMap.get(CRServo.class, "crServo");
         poker       = hardwareMap.get(Servo.class, "pollenServo");
+        // Limit the poker so it can never turn past POKER_MAX_DEGREES
+        poker.scaleRange(0.0, POKER_MAX_DEGREES / SERVO_RANGE_DEGREES);
 
         // Flip any of these if that mechanism runs backwards
         leftDrive.setDirection(DcMotor.Direction.REVERSE);
         rightDrive.setDirection(DcMotor.Direction.FORWARD);
-        intakeMotor.setDirection(DcMotor.Direction.FORWARD);
+        intakeMotor.setDirection(DcMotor.Direction.REVERSE);
         flywheel.setDirection(DcMotor.Direction.FORWARD);
         feeder.setDirection(DcMotorSimple.Direction.FORWARD);
 
@@ -129,15 +132,14 @@ public class BiobuzzTeleOp extends LinearOpMode {
         boolean launching = gamepad1.left_bumper;
 
         // ---------------- Flywheel ----------------
-        if (gamepad1.x) {
-            flywheel.setPower(-0.5);
-        } else if (launching || gamepad1.y) {
+        // Only ever spins in the shooting direction
+        if (launching || gamepad1.y) {
             flywheel.setVelocity(FLYWHEEL_TARGET_VELOCITY);
         } else {
             flywheel.setPower(0);
         }
-        boolean flywheelReady = !gamepad1.x
-                && Math.abs(flywheel.getVelocity() - FLYWHEEL_TARGET_VELOCITY) < FLYWHEEL_READY_TOLERANCE;
+        boolean flywheelReady =
+                Math.abs(flywheel.getVelocity() - FLYWHEEL_TARGET_VELOCITY) < FLYWHEEL_READY_TOLERANCE;
 
         // ---------------- Feeder ----------------
         boolean feeding = launching && flywheelReady;
@@ -150,9 +152,8 @@ public class BiobuzzTeleOp extends LinearOpMode {
         }
 
         // ---------------- Intake ----------------
-        if (gamepad1.right_trigger > 1.0) {
-            intakeMotor.setPower(-INTAKE_POWER);
-        } else if (gamepad1.right_bumper || (feeding && RUN_INTAKE_WHILE_FEEDING)) {
+        // Only ever spins in the direction that pulls POLLEN in
+        if (gamepad1.right_bumper || (feeding && RUN_INTAKE_WHILE_FEEDING)) {
             intakeMotor.setPower(INTAKE_POWER);
         } else {
             intakeMotor.setPower(0);
@@ -198,3 +199,4 @@ public class BiobuzzTeleOp extends LinearOpMode {
         return Math.abs(value) < STICK_DEADZONE ? 0.0 : value;
     }
 }
+// done

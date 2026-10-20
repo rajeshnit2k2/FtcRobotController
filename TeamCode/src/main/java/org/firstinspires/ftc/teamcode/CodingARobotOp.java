@@ -39,15 +39,11 @@ public class CodingARobotOp extends LinearOpMode {
     // Largest amount the arm position can move in a single loop, at full trigger press
     private static final double ARM_MAX_STEP_PER_LOOP = 0.01;
 
-    private DcMotor motorRearLeft  = null;
-    private DcMotor motorRearRight = null;
-    private Servo   armServo       = null;
-
     @Override
     public void runOpMode() {
-        motorRearLeft  = hardwareMap.get(DcMotor.class, LEFT_MOTOR_NAME);
-        motorRearRight = hardwareMap.get(DcMotor.class, RIGHT_MOTOR_NAME);
-        armServo       = hardwareMap.get(Servo.class, ARM_SERVO_NAME);
+        DcMotor motorRearLeft  = hardwareMap.get(DcMotor.class, LEFT_MOTOR_NAME);
+        DcMotor motorRearRight = hardwareMap.get(DcMotor.class, RIGHT_MOTOR_NAME);
+        Servo   armServo       = hardwareMap.get(Servo.class, ARM_SERVO_NAME);
 
         // Set directions so pushing positive power moves the wheels forward
         motorRearLeft.setDirection(DcMotor.Direction.REVERSE);
