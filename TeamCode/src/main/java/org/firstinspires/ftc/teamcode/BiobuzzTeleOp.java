@@ -26,6 +26,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *   Left stick      - arcade drive (Y = forward/back, X = turn)
  *   Left bumper     - launch: spin up flywheel, then feed once it is at speed
  *   Right bumper    - intake POLLEN
+ *   X               - flywheel + feeder start together immediately (no wait for speed)
  *   Y               - spin flywheel only (pre-spin before you line up)
  *   D-pad up/down   - run feeder forward/reverse manually
  *   A / B           - pollen poker down / up
@@ -130,10 +131,12 @@ public class BiobuzzTeleOp extends LinearOpMode {
     /** Runs flywheel, feeder and intake. Returns true when the flywheel is at launch speed. */
     private boolean runLauncher() {
         boolean launching = gamepad1.left_bumper;
+        // X starts flywheel and feeder together, without waiting for the flywheel to reach speed
+        boolean fireNow = gamepad1.x;
 
         // ---------------- Flywheel ----------------
         // Only ever spins in the shooting direction
-        if (launching || gamepad1.y) {
+        if (launching || fireNow || gamepad1.y) {
             flywheel.setVelocity(FLYWHEEL_TARGET_VELOCITY);
         } else {
             flywheel.setPower(0);
@@ -142,7 +145,7 @@ public class BiobuzzTeleOp extends LinearOpMode {
                 Math.abs(flywheel.getVelocity() - FLYWHEEL_TARGET_VELOCITY) < FLYWHEEL_READY_TOLERANCE;
 
         // ---------------- Feeder ----------------
-        boolean feeding = launching && flywheelReady;
+        boolean feeding = (launching && flywheelReady) || fireNow;
         if (gamepad1.dpad_up || feeding) {
             feeder.setPower(FEEDER_POWER);
         } else if (gamepad1.dpad_down) {
