@@ -22,17 +22,15 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *   Motors: leftDrive (port 0), rightDrive (port 1), intakeMotor (port 2), flywheel (port 3)
  *   Servos: crServo (port 0, continuous feeder), pollenServo (port 1, pollen poker)
  *
- * Controls - gamepad1 (driver):
+ * Controls (gamepad1):
  *   Left stick      - arcade drive (Y = forward/back, X = turn)
- *   Left trigger    - hold for slow, precise driving
- *
- * Controls - gamepad2 (operator):
  *   Left bumper     - launch: spin up flywheel, then feed once it is at speed
- *   Right bumper    - press to start intake + feeder, press again to stop both
+ *   Right bumper    - press to start intake, press again to stop
  *   Y               - press to start flywheel, press again to stop
  *   D-pad up/down   - run feeder forward/reverse manually (hold)
  *   X               - press to start feeder (crServo), press again to stop
  *   A / B           - pollen poker down / up
+ *   Left trigger    - hold for slow, precise driving
  */
 @TeleOp(name = "BIOBUZZ TeleOp", group = "BIOBUZZ")
 public class BiobuzzTeleOp extends LinearOpMode {
@@ -42,7 +40,7 @@ public class BiobuzzTeleOp extends LinearOpMode {
     // Feeder only runs once the flywheel is within this many ticks/sec of the target
     static final double FLYWHEEL_READY_TOLERANCE = 100;
 
-    static final double INTAKE_POWER = 0.5;
+    static final double INTAKE_POWER = 0.65;
     static final double FEEDER_POWER = 1.0;
     // Also run the intake while feeding, to push POLLEN up into the feeder
     static final boolean RUN_INTAKE_WHILE_FEEDING = true;
@@ -140,21 +138,21 @@ public class BiobuzzTeleOp extends LinearOpMode {
 
     /** Runs flywheel, feeder and intake. Returns true when the flywheel is at launch speed. */
     private boolean runLauncher() {
-        boolean launching = gamepad2.left_bumper;
+        boolean launching = gamepad1.left_bumper;
 
         // Only flip on the moment the button goes down, not every loop while it is held
-        if (gamepad2.right_bumper && !lastRightBumper) {
+        if (gamepad1.right_bumper && !lastRightBumper) {
             intakeOn = !intakeOn;
         }
-        if (gamepad2.x && !lastX) {
+        if (gamepad1.x && !lastX) {
             feederOn = !feederOn;
         }
-        if (gamepad2.y && !lastY) {
+        if (gamepad1.y && !lastY) {
             flywheelOn = !flywheelOn;
         }
-        lastRightBumper = gamepad2.right_bumper;
-        lastX = gamepad2.x;
-        lastY = gamepad2.y;
+        lastRightBumper = gamepad1.right_bumper;
+        lastX = gamepad1.x;
+        lastY = gamepad1.y;
 
         // ---------------- Flywheel ----------------
         // Only ever spins in the shooting direction
@@ -168,11 +166,11 @@ public class BiobuzzTeleOp extends LinearOpMode {
 
         // ---------------- Feeder ----------------
         boolean feeding = launching && flywheelReady;
-        // Feeder also runs whenever the intake is switched on (right bumper)
-        if (gamepad2.dpad_up || feederOn || intakeOn || feeding) {
-            feeder.setPower(FEEDER_POWER);
-        } else if (gamepad2.dpad_down) {
+        // Feeder is controlled separately from the intake. D-pad overrides the X toggle while held.
+        if (gamepad1.dpad_down) {
             feeder.setPower(-FEEDER_POWER);
+        } else if (gamepad1.dpad_up || feederOn || feeding) {
+            feeder.setPower(FEEDER_POWER);
         } else {
             feeder.setPower(0);
         }
@@ -189,9 +187,9 @@ public class BiobuzzTeleOp extends LinearOpMode {
     }
 
     private void runPoker() {
-        if (gamepad2.a) {
+        if (gamepad1.a) {
             poker.setPosition(POKER_DOWN);
-        } else if (gamepad2.b) {
+        } else if (gamepad1.b) {
             poker.setPosition(POKER_UP);
         }
     }
