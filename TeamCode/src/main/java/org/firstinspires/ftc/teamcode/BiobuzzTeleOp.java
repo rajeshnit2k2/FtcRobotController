@@ -40,7 +40,7 @@ public class BiobuzzTeleOp extends LinearOpMode {
     // Feeder only runs once the flywheel is within this many ticks/sec of the target
     static final double FLYWHEEL_READY_TOLERANCE = 100;
 
-    static final double INTAKE_POWER = 0.65;
+    static final double INTAKE_POWER = 0.75;
     static final double FEEDER_POWER = 1.0;
     // Also run the intake while feeding, to push POLLEN up into the feeder
     static final boolean RUN_INTAKE_WHILE_FEEDING = true;
