@@ -6,7 +6,8 @@ import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.PwmControl;
+import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 /**
@@ -23,7 +24,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *   Servos: crServo (port 0, continuous feeder), pollenServo (port 1, pollen poker)
  *
  * Controls (gamepad1):
- *   Left stick      - arcade drive (Y = forward/back, X = turn)
+ *   Left stick Y    - drive forward / backward
+ *   Right stick X   - turn left / right
  *   Left bumper     - launch: spin up flywheel, then feed once it is at speed
  *   Right bumper    - press to start intake, press again to stop
  *   Y               - press to start flywheel, press again to stop
@@ -40,17 +42,20 @@ public class BiobuzzTeleOp extends LinearOpMode {
     // Feeder only runs once the flywheel is within this many ticks/sec of the target
     static final double FLYWHEEL_READY_TOLERANCE = 100;
 
-    static final double INTAKE_POWER = 0.75;
+    static final double INTAKE_POWER = 0.67;
     static final double FEEDER_POWER = 1.0;
     // Also run the intake while feeding, to push POLLEN up into the feeder
     static final boolean RUN_INTAKE_WHILE_FEEDING = true;
 
-    // Pollen poker travel is capped at POKER_MAX_DEGREES. REV Smart Robot Servo default range is 270 degrees.
+    // REV Smart Robot Servo turns 270 degrees over a 500-2500 us pulse. The SDK defaults to 600-2400 us,
+    // so the poker widens it in init to make these angles real degrees.
     static final double SERVO_RANGE_DEGREES = 270;
-    static final double POKER_MAX_DEGREES   = 90;
-    // Poker positions (0.0 to 1.0) within the capped range: 0.0 = 0 degrees, 1.0 = 90 degrees
-    static final double POKER_DOWN = 0.0;
-    static final double POKER_UP   = 0.90;
+    // Poker angles, in degrees from one end of the servo travel. Tune these on the robot:
+    //   leaning back -> lower POKER_UP_DEGREES, leaning forward -> raise it.
+    static final double POKER_UP_DEGREES   = 80;   // upright (was 95, which leaned about 15 degrees back)
+    static final double POKER_DOWN_DEGREES = 0;    // as far down as the servo can go
+    static final double POKER_UP   = POKER_UP_DEGREES / SERVO_RANGE_DEGREES;
+    static final double POKER_DOWN = POKER_DOWN_DEGREES / SERVO_RANGE_DEGREES;
 
     static final double DRIVE_MAX_SPEED  = 1.0;
     static final double DRIVE_SLOW_SPEED = 0.35;
@@ -65,7 +70,7 @@ public class BiobuzzTeleOp extends LinearOpMode {
     private DcMotor   intakeMotor;
     private DcMotorEx flywheel;
     private CRServo   feeder;
-    private Servo     poker;
+    private ServoImplEx poker;
 
     private final ElapsedTime matchTimer = new ElapsedTime();
 
@@ -84,9 +89,8 @@ public class BiobuzzTeleOp extends LinearOpMode {
         intakeMotor = hardwareMap.get(DcMotor.class, "intakeMotor");
         flywheel    = hardwareMap.get(DcMotorEx.class, "flywheel");
         feeder      = hardwareMap.get(CRServo.class, "crServo");
-        poker       = hardwareMap.get(Servo.class, "pollenServo");
-        // Limit the poker so it can never turn past POKER_MAX_DEGREES
-        poker.scaleRange(0.0, POKER_MAX_DEGREES / SERVO_RANGE_DEGREES);
+        poker       = hardwareMap.get(ServoImplEx.class, "pollenServo");
+        poker.setPwmRange(new PwmControl.PwmRange(500, 2500));
 
         // Flip any of these if that mechanism runs backwards
         leftDrive.setDirection(DcMotor.Direction.REVERSE);
@@ -103,13 +107,14 @@ public class BiobuzzTeleOp extends LinearOpMode {
         flywheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        // Nothing moves during INIT, so it is safe to INIT during the AUTO-to-TELEOP transition (G403)
+        // Stand the poker upright as soon as the OpMode is INITed. Nothing else moves during INIT (G403).
+        poker.setPosition(POKER_UP);
+
         telemetry.addData("Status", "Initialized. Press START when TELEOP begins.");
         telemetry.update();
 
         waitForStart();
         matchTimer.reset();
-        poker.setPosition(POKER_UP);
 
         while (opModeIsActive()) {
             drive();
@@ -123,7 +128,7 @@ public class BiobuzzTeleOp extends LinearOpMode {
 
     private void drive() {
         double forward = applyDeadzone(-gamepad1.left_stick_y);
-        double turn    = applyDeadzone(gamepad1.left_stick_x);
+        double turn    = applyDeadzone(gamepad1.right_stick_x);
 
         double left  = forward + turn;
         double right = forward - turn;
