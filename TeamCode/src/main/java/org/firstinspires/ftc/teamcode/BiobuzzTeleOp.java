@@ -6,7 +6,8 @@ import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.PwmControl;
+import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 /**
@@ -19,41 +20,59 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *   - End the match at least partially in your LOADING ZONE for PARK (5 pts), and stop moving at 0:00 (G404).
  *
  * Robot configuration names (match REV's starter bot config):
- *   Motors: leftDrive (port 0), rightDrive (port 1), intakeMotor (port 2), flywheel (port 3)
+ *   Motors: leftDrive (port 0), rightDrive (port 1), intakeMotor (port 2, LAUNCHES - used as the flywheel),
+ *           flywheel (port 3, INTAKE - pulls POLLEN in)
  *   Servos: crServo (port 0, continuous feeder), pollenServo (port 1, pollen poker)
+ *   Camera: Webcam 1 (USB), facing the same way as the launcher
  *
  * Controls (gamepad1):
- *   Left stick      - arcade drive (Y = forward/back, X = turn)
+ *   Left stick Y    - drive forward / backward
+ *   Right stick X   - turn left / right
  *   Left bumper     - launch: spin up flywheel, then feed once it is at speed
- *   Right bumper    - intake POLLEN
- *   Y               - spin flywheel only (pre-spin before you line up)
- *   D-pad up/down   - run feeder forward/reverse manually
+ *   Right bumper    - press to start intake, press again to stop
+ *   Y               - press to start flywheel, press again to stop
+ *   D-pad up/down   - run feeder forward/reverse manually (hold)
+ *   D-pad left/right- trim flywheel speed down/up if shots land short/long
+ *   X               - press to start feeder (crServo), press again to stop
  *   A / B           - pollen poker down / up
  *   Left trigger    - hold for slow, precise driving
+ *   Right trigger   - hold to AUTO-AIM at the HIVE with Webcam 1 (forward/back stays on the left stick).
+ *                     While held, launching waits until the robot is lined up. Gamepad rumbles when READY.
+ *
+ * During INIT: X = BLUE alliance, B = RED alliance (defaults to what AUTO used). Picks which HIVE to aim at.
+ * Whenever Webcam 1 sees the HIVE, flywheel speed is set from the distance (see HiveAimer).
  */
 @TeleOp(name = "BIOBUZZ TeleOp", group = "BIOBUZZ")
 public class BiobuzzTeleOp extends LinearOpMode {
 
-    // Flywheel target in encoder ticks per second. Tune on the field: raise it if shots fall short of the CELL.
+    // Flywheel target in encoder ticks per second, used when the camera can't see the HIVE.
+    // Tune on the field: raise it if shots fall short of the CELL.
     static final double FLYWHEEL_TARGET_VELOCITY = 2000;
     // Feeder only runs once the flywheel is within this many ticks/sec of the target
     static final double FLYWHEEL_READY_TOLERANCE = 100;
 
-    static final double INTAKE_POWER = 1.0;
+    static final double INTAKE_POWER = 0.67;
     static final double FEEDER_POWER = 1.0;
     // Also run the intake while feeding, to push POLLEN up into the feeder
     static final boolean RUN_INTAKE_WHILE_FEEDING = true;
 
-    // Pollen poker travel is capped at POKER_MAX_DEGREES. REV Smart Robot Servo default range is 270 degrees.
+    // REV Smart Robot Servo turns 270 degrees over a 500-2500 us pulse. The SDK defaults to 600-2400 us,
+    // so the poker widens it in init to make these angles real degrees.
     static final double SERVO_RANGE_DEGREES = 270;
-    static final double POKER_MAX_DEGREES   = 90;
-    // Poker positions (0.0 to 1.0) within the capped range: 0.0 = 0 degrees, 1.0 = 90 degrees
-    static final double POKER_DOWN = 0.0;
-    static final double POKER_UP   = 0.90;
+    // Poker angles, in degrees from one end of the servo travel. Tune these on the robot:
+    //   leaning back -> lower POKER_UP_DEGREES, leaning forward -> raise it.
+    static final double POKER_UP_DEGREES   = 80;   // upright (was 95, which leaned about 15 degrees back)
+    static final double POKER_DOWN_DEGREES = 0;    // as far down as the servo can go
+    static final double POKER_UP   = POKER_UP_DEGREES / SERVO_RANGE_DEGREES;
+    static final double POKER_DOWN = POKER_DOWN_DEGREES / SERVO_RANGE_DEGREES;
 
     static final double DRIVE_MAX_SPEED  = 1.0;
     static final double DRIVE_SLOW_SPEED = 0.35;
     static final double STICK_DEADZONE   = 0.5;
+
+    // Each D-pad left/right press changes the flywheel speed by this many ticks/sec
+    static final double VELOCITY_TRIM_STEP = 25;
+    static final int READY_RUMBLE_MS = 200;
 
     static final double TELEOP_SECONDS = 120;
     static final double FLOWER_NECTAR_ALLOWED_SECONDS_LEFT = 60;
@@ -64,26 +83,44 @@ public class BiobuzzTeleOp extends LinearOpMode {
     private DcMotor   intakeMotor;
     private DcMotorEx flywheel;
     private CRServo   feeder;
-    private Servo     poker;
+    private ServoImplEx poker;
+    private HiveAimer aimer;
 
     private final ElapsedTime matchTimer = new ElapsedTime();
+
+    // Toggle state: each press of the button flips the mechanism on/off
+    private boolean intakeOn = false;
+    private boolean feederOn = false;
+    private boolean flywheelOn = false;
+    private boolean lastRightBumper = false;
+    private boolean lastX = false;
+    private boolean lastY = false;
+    private boolean lastDpadLeft = false;
+    private boolean lastDpadRight = false;
+    private boolean lastShotReady = false;
+
+    private boolean isBlue = HiveAimer.lastAllianceBlue;
+    private boolean autoAiming = false;
+    private double flywheelTarget = FLYWHEEL_TARGET_VELOCITY;
+    private double velocityTrim = 0;
 
     @Override
     public void runOpMode() {
         leftDrive   = hardwareMap.get(DcMotor.class, "leftDrive");
         rightDrive  = hardwareMap.get(DcMotor.class, "rightDrive");
-        intakeMotor = hardwareMap.get(DcMotor.class, "intakeMotor");
-        flywheel    = hardwareMap.get(DcMotorEx.class, "flywheel");
+        // Config names are swapped on this robot: port 2 "intakeMotor" throws POLLEN, port 3 "flywheel" pulls it in
+        intakeMotor = hardwareMap.get(DcMotor.class, "flywheel");
+        flywheel    = hardwareMap.get(DcMotorEx.class, "intakeMotor");
         feeder      = hardwareMap.get(CRServo.class, "crServo");
-        poker       = hardwareMap.get(Servo.class, "pollenServo");
-        // Limit the poker so it can never turn past POKER_MAX_DEGREES
-        poker.scaleRange(0.0, POKER_MAX_DEGREES / SERVO_RANGE_DEGREES);
+        poker       = hardwareMap.get(ServoImplEx.class, "pollenServo");
+        poker.setPwmRange(new PwmControl.PwmRange(500, 2500));
+        aimer       = new HiveAimer(hardwareMap);
 
         // Flip any of these if that mechanism runs backwards
         leftDrive.setDirection(DcMotor.Direction.REVERSE);
         rightDrive.setDirection(DcMotor.Direction.FORWARD);
-        intakeMotor.setDirection(DcMotor.Direction.REVERSE);
-        flywheel.setDirection(DcMotor.Direction.FORWARD);
+        intakeMotor.setDirection(DcMotor.Direction.FORWARD);
+        flywheel.setDirection(DcMotor.Direction.REVERSE);
         feeder.setDirection(DcMotorSimple.Direction.FORWARD);
 
         leftDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -94,18 +131,32 @@ public class BiobuzzTeleOp extends LinearOpMode {
         flywheel.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        // Nothing moves during INIT, so it is safe to INIT during the AUTO-to-TELEOP transition (G403)
-        telemetry.addData("Status", "Initialized. Press START when TELEOP begins.");
-        telemetry.update();
-
-        waitForStart();
-        matchTimer.reset();
+        // Stand the poker upright as soon as the OpMode is INITed. Nothing else moves during INIT (G403).
         poker.setPosition(POKER_UP);
 
+        // Pick the alliance while waiting for START, and show whether the camera can see that HIVE
+        while (!isStarted() && !isStopRequested()) {
+            if (gamepad1.x) isBlue = true;
+            if (gamepad1.b) isBlue = false;
+            aimer.setAlliance(isBlue);
+            aimer.update();
+
+            telemetry.addData("Status", "Initialized. Press START when TELEOP begins.");
+            telemetry.addData("Alliance (X blue / B red)", isBlue ? "BLUE" : "RED");
+            aimer.addTelemetry(telemetry);
+            telemetry.update();
+        }
+        HiveAimer.lastAllianceBlue = isBlue;
+        // X was used to pick the alliance; don't let that same press toggle the feeder
+        lastX = gamepad1.x;
+        matchTimer.reset();
+
         while (opModeIsActive()) {
+            aimer.update();
             drive();
             boolean flywheelReady = runLauncher();
             runPoker();
+            rumbleWhenReady(flywheelReady);
             showTelemetry(flywheelReady);
         }
 
@@ -114,7 +165,13 @@ public class BiobuzzTeleOp extends LinearOpMode {
 
     private void drive() {
         double forward = applyDeadzone(-gamepad1.left_stick_y);
-        double turn    = applyDeadzone(gamepad1.left_stick_x);
+        double turn    = applyDeadzone(gamepad1.right_stick_x);
+
+        // Auto-aim takes over turning only while the HIVE is in view; otherwise the driver keeps control
+        autoAiming = gamepad1.right_trigger > 0.5 && aimer.hasTarget();
+        if (autoAiming) {
+            turn = aimer.getTurnPower();
+        }
 
         double left  = forward + turn;
         double right = forward - turn;
@@ -131,29 +188,55 @@ public class BiobuzzTeleOp extends LinearOpMode {
     private boolean runLauncher() {
         boolean launching = gamepad1.left_bumper;
 
+        // Only flip on the moment the button goes down, not every loop while it is held
+        if (gamepad1.right_bumper && !lastRightBumper) {
+            intakeOn = !intakeOn;
+        }
+        if (gamepad1.x && !lastX) {
+            feederOn = !feederOn;
+        }
+        if (gamepad1.y && !lastY) {
+            flywheelOn = !flywheelOn;
+        }
+        if (gamepad1.dpad_right && !lastDpadRight) {
+            velocityTrim += VELOCITY_TRIM_STEP;
+        }
+        if (gamepad1.dpad_left && !lastDpadLeft) {
+            velocityTrim -= VELOCITY_TRIM_STEP;
+        }
+        lastRightBumper = gamepad1.right_bumper;
+        lastX = gamepad1.x;
+        lastY = gamepad1.y;
+        lastDpadRight = gamepad1.dpad_right;
+        lastDpadLeft = gamepad1.dpad_left;
+
         // ---------------- Flywheel ----------------
+        // Speed comes from the distance to the HIVE when the camera sees it, plus the driver's trim
+        flywheelTarget = aimer.getFlywheelVelocity(FLYWHEEL_TARGET_VELOCITY) + velocityTrim;
         // Only ever spins in the shooting direction
-        if (launching || gamepad1.y) {
-            flywheel.setVelocity(FLYWHEEL_TARGET_VELOCITY);
+        if (launching || flywheelOn) {
+            flywheel.setVelocity(flywheelTarget);
         } else {
             flywheel.setPower(0);
         }
         boolean flywheelReady =
-                Math.abs(flywheel.getVelocity() - FLYWHEEL_TARGET_VELOCITY) < FLYWHEEL_READY_TOLERANCE;
+                Math.abs(flywheel.getVelocity() - flywheelTarget) < FLYWHEEL_READY_TOLERANCE;
 
         // ---------------- Feeder ----------------
-        boolean feeding = launching && flywheelReady;
-        if (gamepad1.dpad_up || feeding) {
-            feeder.setPower(FEEDER_POWER);
-        } else if (gamepad1.dpad_down) {
+        // While auto-aiming, hold the shot until the robot is lined up so POLLEN isn't launched mid-turn
+        boolean feeding = launching && flywheelReady && (!autoAiming || aimer.isAimed());
+        // Feeder is controlled separately from the intake. D-pad overrides the X toggle while held.
+        if (gamepad1.dpad_down) {
             feeder.setPower(-FEEDER_POWER);
+        } else if (gamepad1.dpad_up || feederOn || feeding) {
+            feeder.setPower(FEEDER_POWER);
         } else {
             feeder.setPower(0);
         }
 
         // ---------------- Intake ----------------
         // Only ever spins in the direction that pulls POLLEN in
-        if (gamepad1.right_bumper || (feeding && RUN_INTAKE_WHILE_FEEDING)) {
+        if (intakeOn || (feeding && RUN_INTAKE_WHILE_FEEDING)) {
             intakeMotor.setPower(INTAKE_POWER);
         } else {
             intakeMotor.setPower(0);
@@ -170,6 +253,15 @@ public class BiobuzzTeleOp extends LinearOpMode {
         }
     }
 
+    /** Short rumble the moment the robot is aimed at the HIVE and the flywheel is at speed. */
+    private void rumbleWhenReady(boolean flywheelReady) {
+        boolean shotReady = aimer.isAimed() && flywheelReady && flywheel.getVelocity() > 0;
+        if (shotReady && !lastShotReady) {
+            gamepad1.rumble(READY_RUMBLE_MS);
+        }
+        lastShotReady = shotReady;
+    }
+
     private void showTelemetry(boolean flywheelReady) {
         double secondsLeft = Math.max(0, TELEOP_SECONDS - matchTimer.seconds());
 
@@ -179,10 +271,15 @@ public class BiobuzzTeleOp extends LinearOpMode {
         } else if (secondsLeft <= FLOWER_NECTAR_ALLOWED_SECONDS_LEFT) {
             telemetry.addLine(">>> NECTAR into FLOWERS now allowed <<<");
         }
-        telemetry.addData("Flywheel", "%.0f / %.0f ticks/s %s",
-                flywheel.getVelocity(), FLYWHEEL_TARGET_VELOCITY, flywheelReady ? "READY" : "");
+        aimer.addTelemetry(telemetry);
+        telemetry.addData("Auto-aim", autoAiming ? (aimer.isAimed() ? "LOCKED" : "TURNING") : "off");
+        telemetry.addData("Flywheel", "%.0f / %.0f ticks/s %s %s",
+                flywheel.getVelocity(), flywheelTarget, flywheelReady ? "READY" : "",
+                flywheelOn ? "(ON)" : "");
+        telemetry.addData("Velocity trim", "%+.0f ticks/s", velocityTrim);
         telemetry.addData("Drive", "L %.2f  R %.2f", leftDrive.getPower(), rightDrive.getPower());
-        telemetry.addData("Feeder", "%.2f", feeder.getPower());
+        telemetry.addData("Intake", intakeOn ? "ON" : "OFF");
+        telemetry.addData("Feeder", "%.2f %s", feeder.getPower(), feederOn ? "(ON)" : "");
         telemetry.addData("Poker", "%.2f", poker.getPosition());
         telemetry.update();
     }
@@ -193,6 +290,7 @@ public class BiobuzzTeleOp extends LinearOpMode {
         intakeMotor.setPower(0);
         flywheel.setPower(0);
         feeder.setPower(0);
+        aimer.close();
     }
 
     private double applyDeadzone(double value) {

@@ -13,7 +13,9 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *
  * Plan:
  *   1. (Optional) wait a few seconds so we don't collide with our alliance partner.
- *   2. LAUNCH the 4 pre-loaded POLLEN into our upward-facing CELL (counts toward a HIVE TIP, 20 pts).
+ *   2. Turn to face our HIVE using Webcam 1 while the flywheel spins up to the speed for that distance,
+ *      then LAUNCH the 4 pre-loaded POLLEN into our upward-facing CELL (counts toward a HIVE TIP, 20 pts).
+ *      If the camera can't see the HIVE, it launches straight ahead at the default speed like before.
  *   3. Drive off the wall for LEAVE (3 pts).
  *   4. (Optional) turn and drive into our LOADING ZONE for PARK (5 pts).
  *
@@ -33,6 +35,7 @@ public class BiobuzzAuto extends LinearOpMode {
     // Launcher settings, shared with TeleOp so both shoot the same
     static final double FLYWHEEL_TARGET_VELOCITY = BiobuzzTeleOp.FLYWHEEL_TARGET_VELOCITY;
     static final double FLYWHEEL_READY_TOLERANCE = BiobuzzTeleOp.FLYWHEEL_READY_TOLERANCE;
+    // Also the longest we spend turning to face the HIVE before shooting anyway
     static final double FLYWHEEL_SPINUP_TIMEOUT_SECONDS = 3.0;
     // Long enough to push all 4 pre-loads through the launcher
     static final double FEED_SECONDS = 4.0;
@@ -55,6 +58,7 @@ public class BiobuzzAuto extends LinearOpMode {
     private DcMotor   intakeMotor;
     private DcMotorEx flywheel;
     private CRServo   feeder;
+    private HiveAimer aimer;
 
     private boolean isBlue = true;
     private boolean parkEnabled = true;
@@ -69,8 +73,11 @@ public class BiobuzzAuto extends LinearOpMode {
 
         // selectOptions() returns on START or STOP; bail out if it was STOP
         if (!opModeIsActive()) {
+            aimer.close();
             return;
         }
+        // TeleOp starts on the same alliance
+        HiveAimer.lastAllianceBlue = isBlue;
 
         waitSeconds(startDelaySeconds);
         launchPreloads();
@@ -90,15 +97,17 @@ public class BiobuzzAuto extends LinearOpMode {
     private void initHardware() {
         leftDrive   = hardwareMap.get(DcMotor.class, "leftDrive");
         rightDrive  = hardwareMap.get(DcMotor.class, "rightDrive");
-        intakeMotor = hardwareMap.get(DcMotor.class, "intakeMotor");
-         flywheel    = hardwareMap.get(DcMotorEx.class, "flywheel");
+        // Config names are swapped on this robot: port 2 "intakeMotor" throws POLLEN, port 3 "flywheel" pulls it in
+        intakeMotor = hardwareMap.get(DcMotor.class, "flywheel");
+        flywheel    = hardwareMap.get(DcMotorEx.class, "intakeMotor");
         feeder      = hardwareMap.get(CRServo.class, "crServo");
+        aimer       = new HiveAimer(hardwareMap);
 
         // Keep these in sync with BiobuzzTeleOp
         leftDrive.setDirection(DcMotor.Direction.REVERSE);
         rightDrive.setDirection(DcMotor.Direction.FORWARD);
         intakeMotor.setDirection(DcMotor.Direction.FORWARD);
-        flywheel.setDirection(DcMotor.Direction.FORWARD);
+        flywheel.setDirection(DcMotor.Direction.REVERSE);
         feeder.setDirection(DcMotorSimple.Direction.FORWARD);
 
         leftDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -129,22 +138,32 @@ public class BiobuzzAuto extends LinearOpMode {
             lastUp = gamepad1.dpad_up;
             lastDown = gamepad1.dpad_down;
 
+            // Lets the drive team check the camera can see the HIVE from the start spot
+            aimer.setAlliance(isBlue);
+            aimer.update();
+
             telemetry.addLine("Select with gamepad1, then press START");
             telemetry.addData("Alliance (X blue / B red)", isBlue ? "BLUE" : "RED");
             telemetry.addData("Start delay (dpad up/down)", "%d s", startDelaySeconds);
             telemetry.addData("Park (dpad left/right)", parkEnabled ? "ON" : "OFF");
+            aimer.addTelemetry(telemetry);
             telemetry.update();
         }
     }
 
     private void launchPreloads() {
-        // Spin up and wait until the flywheel is at speed (or give up after the timeout and shoot anyway)
-        flywheel.setVelocity(FLYWHEEL_TARGET_VELOCITY);
+        // Spin up while turning to face the HIVE. Shoot once at speed AND aimed (or the HIVE isn't in view),
+        // or give up after the timeout and shoot anyway.
         timer.reset();
-        while (opModeIsActive() && timer.seconds() < FLYWHEEL_SPINUP_TIMEOUT_SECONDS
-                && Math.abs(flywheel.getVelocity() - FLYWHEEL_TARGET_VELOCITY) > FLYWHEEL_READY_TOLERANCE) {
-            telemetry.addData("Step", "Spinning up flywheel");
-            telemetry.addData("Flywheel", "%.0f / %.0f ticks/s", flywheel.getVelocity(), FLYWHEEL_TARGET_VELOCITY);
+        while (opModeIsActive() && timer.seconds() < FLYWHEEL_SPINUP_TIMEOUT_SECONDS) {
+            double targetVelocity = aimAtHive();
+            boolean atSpeed = Math.abs(flywheel.getVelocity() - targetVelocity) <= FLYWHEEL_READY_TOLERANCE;
+            if (atSpeed && (aimer.isAimed() || !aimer.hasTarget())) {
+                break;
+            }
+            telemetry.addData("Step", "Aiming and spinning up flywheel");
+            aimer.addTelemetry(telemetry);
+            telemetry.addData("Flywheel", "%.0f / %.0f ticks/s", flywheel.getVelocity(), targetVelocity);
             telemetry.update();
         }
 
@@ -154,14 +173,31 @@ public class BiobuzzAuto extends LinearOpMode {
         }
         timer.reset();
         while (opModeIsActive() && timer.seconds() < FEED_SECONDS) {
+            // Keep correcting aim and speed so later shots stay on target if the robot gets nudged
+            double targetVelocity = aimAtHive();
             telemetry.addData("Step", "Launching pre-loads");
-            telemetry.addData("Flywheel", "%.0f / %.0f ticks/s", flywheel.getVelocity(), FLYWHEEL_TARGET_VELOCITY);
+            aimer.addTelemetry(telemetry);
+            telemetry.addData("Flywheel", "%.0f / %.0f ticks/s", flywheel.getVelocity(), targetVelocity);
             telemetry.update();
         }
 
         feeder.setPower(0);
         intakeMotor.setPower(0);
         flywheel.setPower(0);
+        leftDrive.setPower(0);
+        rightDrive.setPower(0);
+    }
+
+    /** One step of turning toward the HIVE and setting flywheel speed for its distance. Returns that speed. */
+    private double aimAtHive() {
+        aimer.update();
+        double turn = aimer.getTurnPower();
+        leftDrive.setPower(turn);
+        rightDrive.setPower(-turn);
+
+        double targetVelocity = aimer.getFlywheelVelocity(FLYWHEEL_TARGET_VELOCITY);
+        flywheel.setVelocity(targetVelocity);
+        return targetVelocity;
     }
 
     private void drive(double leftPower, double rightPower, double seconds) {
@@ -185,5 +221,6 @@ public class BiobuzzAuto extends LinearOpMode {
         intakeMotor.setPower(0);
         flywheel.setPower(0);
         feeder.setPower(0);
+        aimer.close();
     }
 }
