@@ -19,7 +19,7 @@ import com.qualcomm.robotcore.hardware.Servo;
  * target position a little further each loop, where both the direction and the step size
  * come from how far the stick is pushed.
  */
-@TeleOp(name = "Smart Servo Joystick OpMode", group = "Linear OpMode")
+//@TeleOp(name = "Smart Servo Joystick OpMode", group = "Linear OpMode")
 public class SmartServoJoystickOpMode extends LinearOpMode {
 
     // Hardware config name for the servo, as set on the Driver Station robot configuration
