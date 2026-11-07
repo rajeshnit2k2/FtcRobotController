@@ -48,7 +48,7 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
 
     // Launcher speed as a fraction of full speed (0.0 - 1.0), like INTAKE_POWER.
     // Used when the camera can't see the HIVE. Tune on the field: raise it if shots fall short of the CELL.
-    static final double LAUNCHER_POWER = 0.65;
+    static final double LAUNCHER_POWER = 0.62;
     // Launcher motor's full speed in encoder ticks/sec. REV HD Hex Motor (no gearbox): 6000 RPM x 28 ticks = 2800.
     // Change this if the launcher uses a different motor or gearbox.
     static final double LAUNCHER_MAX_VELOCITY = 2000;
@@ -208,7 +208,9 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
             return;
         }
 
-        double forward = applyDeadzone(-gamepad1.left_stick_y);
+        // Left stick is reversed so pushing it forward drives toward the launcher/camera end of the robot.
+        // (Stick Y is negative when pushed forward.) Remove the reversal by putting the minus sign back.
+        double forward = applyDeadzone(gamepad1.left_stick_y);
         double turn    = applyDeadzone(gamepad1.right_stick_x);
 
         double left  = forward + turn;
