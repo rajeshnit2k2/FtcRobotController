@@ -18,7 +18,7 @@ import java.util.Map;
  *   Right stick X  - turn left / right
  *   R2 (trigger)   - run all the other (non-drive) motors
  */
-@TeleOp(name = "All Motor Test", group = "Linear OpMode")
+//@TeleOp(name = "All Motor Test", group = "Linear OpMode")
 public class AllMotorTestOp extends LinearOpMode {
 
     // Configuration names of the four drive motors

@@ -20,11 +20,16 @@ import java.util.concurrent.TimeUnit;
  * Finds our alliance's HIVE with "Webcam 1" and works out how to aim and how hard to launch at it.
  * Shared by BiobuzzTeleOp, TWO_GamepadOpMode and BiobuzzAuto.
  *
- * The SDK's BIOBUZZ tag library groups the 4 AprilTags on each HIVE face into a "cluster", so the SDK
- * solves one steady pose from however many of the 4 tags it can see:
- *   RED SCORING  = tags 30-33      BLUE SCORING = tags 42-45
+ * The SDK's BIOBUZZ tag library groups the 4 AprilTags on the bottom of each CELL into a "cluster", so the SDK
+ * solves one steady pose from however many of the 4 tags it can see. Each HIVE has 2 CELLS:
+ *   RED  HIVE: RED SCORING  = tags 30-33 (far side)    RED AUDIENCE  = tags 34-37 (audience side)
+ *   BLUE HIVE: BLUE SCORING = tags 42-45 (far side)    BLUE AUDIENCE = tags 38-41 (audience side)
  *
- * Call update() once per loop, then read hasTarget(), getTurnPower(), isAimed() and getFlywheelVelocity().
+ * The tags face DOWN at the floor, so only the upward-facing CELL's tags can be seen from the robot. Every
+ * HIVE TIP swaps which CELL faces up, so we watch BOTH of our alliance's CELLS and aim at whichever one is
+ * in view. That one is always the CELL we should be scoring in.
+ *
+ * Call update() once per loop, then read hasTarget(), getTurnPower(), isAimed() and getLauncherVelocity().
  *
  * Tuning order on the practice field:
  *   1. LAUNCHER_RIGHT_OF_CAMERA_INCHES - measure it on the robot.
@@ -35,11 +40,13 @@ import java.util.concurrent.TimeUnit;
 public class HiveAimer {
 
     static final String WEBCAM_NAME = "Webcam 1";
-    static final String RED_HIVE_CLUSTER  = "RED SCORING";
-    static final String BLUE_HIVE_CLUSTER = "BLUE SCORING";
+    // Cluster names from AprilTagGameDatabase.getBioBuzzTagLibrary()
+    static final String[] RED_CELL_CLUSTERS  = { "RED SCORING",  "RED AUDIENCE" };
+    static final String[] BLUE_CELL_CLUSTERS = { "BLUE SCORING", "BLUE AUDIENCE" };
 
     // How far the launcher sits to the RIGHT of the camera lens, looking from behind the robot (negative = left).
     // The aim is corrected for this so the launcher, not the camera, ends up pointing at the HIVE.
+    // Measured: launcher center is 4" directly above/below the camera, so no left/right correction is needed.
     static final double LAUNCHER_RIGHT_OF_CAMERA_INCHES = 0.0;
     // Extra aim correction in degrees. Positive aims further LEFT. Use it if shots still land off to one side.
     static final double AIM_TRIM_DEGREES = 0.0;
@@ -57,31 +64,34 @@ public class HiveAimer {
     // 0..1: how much each new range reading moves the smoothed range (lower = smoother, slower)
     static final double RANGE_SMOOTHING = 0.3;
 
-    // Flywheel velocity (ticks/s) that scores from each camera-to-HIVE range (inches). Must be in increasing range order.
+    // Launcher velocity (ticks/s) that scores from each camera-to-HIVE range (inches). Must be in increasing range order.
     // STARTING GUESSES ONLY - shoot from each distance on the field and replace these with what actually scores.
     // Ranges between two points are blended; outside the table the nearest end is used.
     static final double[] SHOT_RANGE_INCHES = {   24,   36,   48,   60,   72,   96 };
     static final double[] SHOT_VELOCITY     = { 1700, 1850, 2000, 2150, 2300, 2600 };
 
     // Short exposure cuts motion blur so tags are still read while the robot turns. Raise gain if the image is too dark.
-    static final int CAMERA_EXPOSURE_MS = 8;
+    static final int CAMERA_EXPOSURE_MS = 6;
     static final int CAMERA_GAIN        = 250;
-
-    // Remembers the alliance chosen in AUTO so TeleOp starts on the same one
-    static boolean lastAllianceBlue = true;
 
     private final AprilTagProcessor aprilTag;
     private final VisionPortal visionPortal;
     private final ElapsedTime sinceLastSeen = new ElapsedTime();
+    private final boolean isBlue;
+    private final String[] cellClusters;
 
-    private String hiveCluster = BLUE_HIVE_CLUSTER;
     private boolean exposureSet = false;
     private boolean everSeen = false;
+    // Which of our 2 CELLS we are currently aiming at
+    private String currentCell = "";
     private int tagsSeenPercent;
     private double range;
     private double bearing;
 
-    public HiveAimer(HardwareMap hardwareMap) {
+    public HiveAimer(HardwareMap hardwareMap, boolean isBlue) {
+        this.isBlue = isBlue;
+        this.cellClusters = isBlue ? BLUE_CELL_CLUSTERS : RED_CELL_CLUSTERS;
+
         aprilTag = new AprilTagProcessor.Builder()
                 .setTagLibrary(AprilTagGameDatabase.getBioBuzzTagLibrary())
                 .build();
@@ -94,39 +104,58 @@ public class HiveAimer {
                 .build();
     }
 
-    public void setAlliance(boolean isBlue) {
-        String cluster = isBlue ? BLUE_HIVE_CLUSTER : RED_HIVE_CLUSTER;
-        // Forget the old sighting only when switching HIVEs, so this is safe to call every loop
-        if (!cluster.equals(hiveCluster)) {
-            hiveCluster = cluster;
-            everSeen = false;
-        }
+    public boolean isBlue() {
+        return isBlue;
     }
 
     /** Reads the latest camera detections. Call once per loop. */
     public void update() {
         setExposureOnceStreaming();
 
+        // Find the best view of either of our CELLS. Normally only the upward-facing one is visible; if both
+        // somehow are, prefer the one with more of its 4 tags found, then the closer one.
+        AprilTagClusterDetection best = null;
         for (AprilTagDetection detection : aprilTag.getDetections()) {
             if (!(detection instanceof AprilTagClusterDetection) || detection.ftcPose == null) {
                 continue;
             }
-            AprilTagClusterDetection hive = (AprilTagClusterDetection) detection;
-            if (!hive.metadata.shortName.equals(hiveCluster)) {
+            AprilTagClusterDetection cell = (AprilTagClusterDetection) detection;
+            if (!isOurCell(cell.metadata.shortName)) {
                 continue;
             }
-
-            // Move the target from the camera's point of view to the launcher's.
-            // ftcPose: x = inches right of the camera, y = inches straight ahead. Bearing is positive to the LEFT.
-            double x = hive.ftcPose.x - LAUNCHER_RIGHT_OF_CAMERA_INCHES;
-            double y = hive.ftcPose.y;
-            bearing = -Math.toDegrees(Math.atan2(x, y)) + AIM_TRIM_DEGREES;
-            range = everSeen ? range + RANGE_SMOOTHING * (hive.ftcPose.range - range) : hive.ftcPose.range;
-            tagsSeenPercent = hive.percentClusterFound;
-            everSeen = true;
-            sinceLastSeen.reset();
+            if (best == null
+                    || cell.percentClusterFound > best.percentClusterFound
+                    || (cell.percentClusterFound == best.percentClusterFound && cell.ftcPose.range < best.ftcPose.range)) {
+                best = cell;
+            }
+        }
+        if (best == null) {
             return;
         }
+
+        // After a HIVE TIP we switch to the other CELL; don't blend its range with the old CELL's
+        boolean switchedCell = !best.metadata.shortName.equals(currentCell);
+        currentCell = best.metadata.shortName;
+
+        // Move the target from the camera's point of view to the launcher's.
+        // ftcPose: x = inches right of the camera, y = inches straight ahead. Bearing is positive to the LEFT.
+        double x = best.ftcPose.x - LAUNCHER_RIGHT_OF_CAMERA_INCHES;
+        double y = best.ftcPose.y;
+        bearing = -Math.toDegrees(Math.atan2(x, y)) + AIM_TRIM_DEGREES;
+        range = (everSeen && !switchedCell) ? range + RANGE_SMOOTHING * (best.ftcPose.range - range)
+                                            : best.ftcPose.range;
+        tagsSeenPercent = best.percentClusterFound;
+        everSeen = true;
+        sinceLastSeen.reset();
+    }
+
+    private boolean isOurCell(String clusterName) {
+        for (String name : cellClusters) {
+            if (name.equals(clusterName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean hasTarget() {
@@ -142,6 +171,11 @@ public class HiveAimer {
         return range;
     }
 
+    /** Degrees from the launcher to the HIVE, positive = HIVE is to the LEFT. Only meaningful when hasTarget(). */
+    public double getBearing() {
+        return bearing;
+    }
+
     /** Turn power that swings the robot to face the HIVE. Positive turns right, matching the drive code. */
     public double getTurnPower() {
         if (!hasTarget() || isAimed()) {
@@ -155,8 +189,8 @@ public class HiveAimer {
         return turn;
     }
 
-    /** Flywheel velocity for the current range, or fallbackVelocity when the HIVE is not in view. */
-    public double getFlywheelVelocity(double fallbackVelocity) {
+    /** Launcher velocity for the current range, or fallbackVelocity when the HIVE is not in view. */
+    public double getLauncherVelocity(double fallbackVelocity) {
         if (!hasTarget()) {
             return fallbackVelocity;
         }
@@ -178,9 +212,10 @@ public class HiveAimer {
     public void addTelemetry(Telemetry telemetry) {
         if (hasTarget()) {
             telemetry.addData("HIVE", "%s  %.0f in  %+.1f deg  (%d%% of tags) %s",
-                    hiveCluster, range, bearing, tagsSeenPercent, isAimed() ? "AIMED" : "");
+                    currentCell, range, bearing, tagsSeenPercent, isAimed() ? "AIMED" : "");
         } else {
-            telemetry.addData("HIVE", "%s not in view (camera %s)", hiveCluster, visionPortal.getCameraState());
+            telemetry.addData("HIVE", "%s not in view (camera %s)",
+                    isBlue ? "BLUE" : "RED", visionPortal.getCameraState());
         }
     }
 

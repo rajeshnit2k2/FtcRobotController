@@ -4,7 +4,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
-@TeleOp(name = "Joystick Drive OpMode", group = "Linear OpMode")
+//@TeleOp(name = "Joystick Drive OpMode", group = "Linear OpMode")
 public class JoystickDriveOpMode extends LinearOpMode {
 
     // Caps the drive output so full joystick deflection is 60% power

@@ -17,7 +17,7 @@ import com.qualcomm.robotcore.hardware.Servo;
  *   Y             - snap arm to the UP position
  *   B             - snap arm to the MIDDLE position
  */
-@TeleOp(name = "Coding A Robot OpMode", group = "Linear OpMode")
+//@TeleOp(name = "Coding A Robot OpMode", group = "Linear OpMode")
 public class CodingARobotOp extends LinearOpMode {
 
     // Hardware config names, as set on the Driver Station robot configuration
