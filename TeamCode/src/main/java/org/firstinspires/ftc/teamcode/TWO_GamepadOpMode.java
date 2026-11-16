@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -17,13 +18,11 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *   Motors: leftDrive (port 0), rightDrive (port 1), launcherMotor (port 2, LAUNCHES POLLEN),
  *           intakeMotor (port 3, INTAKE - pulls POLLEN in)
  *   Servos: feederServo (port 0, continuous feeder), pokerServo (port 1, pollen poker)
- *   Camera: Webcam 1 (USB), facing the same way as the launcher
  *
  * Controls (gamepad1 - DRIVER):
  *   Left stick Y    - drive forward / backward
  *   Right stick X   - turn left / right
  *   Left trigger    - hold for slow, precise driving
- *   Right trigger   - hold to AUTO-AIM at the HIVE with Webcam 1 (forward/back stays on the left stick)
  *
  * Controls (gamepad2 - OPERATOR):
  *   Left bumper     - launch: spin up launcher, then feed once it is at speed
@@ -34,45 +33,32 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *   X               - press to start feeder (feederServo), press again to stop
  *   A / B           - pollen poker down / up
  *
- * While the driver auto-aims, launching waits until the robot is lined up. Both gamepads rumble when READY.
- * Pick "BIOBUZZ TeleOp 2 Gamepads BLUE" or "... RED" to match your alliance (TwoGamepadTeleOpBlue / Red).
- * The alliance decides which HIVE auto-aim looks at.
- * Whenever Webcam 1 sees the HIVE, launcher speed is set from the distance (see HiveAimer).
+ * Both gamepads rumble when the launcher reaches full speed.
+ * One program for both alliances (no camera / AprilTags needed).
+ *
+ * All motor/servo speeds and positions come from BiobuzzTeleOp, so the one-gamepad and two-gamepad
+ * TeleOps always behave the same. Tune them in BiobuzzTeleOp.
  */
-public abstract class TWO_GamepadOpMode extends LinearOpMode {
+@TeleOp(name = "BIOBUZZ TeleOp 2 Gamepads", group = "BIOBUZZ")
+public class TWO_GamepadOpMode extends LinearOpMode {
 
-        // Launcher target in encoder ticks per second, used when the camera can't see the HIVE.
-    // Tune on the field: raise it if shots fall short of the CELL.
-    static final double LAUNCHER_TARGET_VELOCITY = 2000;
-    // Feeder only runs once the launcher is within this many ticks/sec of the target
-    static final double LAUNCHER_READY_TOLERANCE = 100;
+    // Shared with BiobuzzTeleOp - change them there
+    static final double LAUNCHER_TARGET_VELOCITY = BiobuzzTeleOp.LAUNCHER_TARGET_VELOCITY;
+    static final double LAUNCHER_READY_TOLERANCE = BiobuzzTeleOp.LAUNCHER_READY_TOLERANCE;
+    static final double INTAKE_POWER = BiobuzzTeleOp.INTAKE_POWER;
+    static final double FEEDER_POWER = BiobuzzTeleOp.FEEDER_POWER;
+    static final boolean RUN_INTAKE_WHILE_FEEDING = BiobuzzTeleOp.RUN_INTAKE_WHILE_FEEDING;
+    static final double POKER_UP   = BiobuzzTeleOp.POKER_UP;
+    static final double POKER_DOWN = BiobuzzTeleOp.POKER_DOWN;
+    static final double DRIVE_MAX_SPEED  = BiobuzzTeleOp.DRIVE_MAX_SPEED;
+    static final double DRIVE_SLOW_SPEED = BiobuzzTeleOp.DRIVE_SLOW_SPEED;
+    static final double STICK_DEADZONE   = BiobuzzTeleOp.STICK_DEADZONE;
+    static final double VELOCITY_TRIM_STEP = BiobuzzTeleOp.VELOCITY_TRIM_STEP;
+    static final int READY_RUMBLE_MS = BiobuzzTeleOp.READY_RUMBLE_MS;
 
-    static final double INTAKE_POWER = 0.70;
-    static final double FEEDER_POWER = 1.0;
-    // Also run the intake while feeding, to push POLLEN up into the feeder
-    static final boolean RUN_INTAKE_WHILE_FEEDING = true;
-
-    // REV Smart Robot Servo turns 270 degrees over a 500-2500 us pulse. The SDK defaults to 600-2400 us,
-    // so the poker widens it in init to make these angles real degrees.
-    static final double SERVO_RANGE_DEGREES = 270;
-    // Poker angles, in degrees from one end of the servo travel. Tune these on the robot:
-    //   leaning back -> lower POKER_UP_DEGREES, leaning forward -> raise it.
-    static final double POKER_UP_DEGREES   = 270;  // upright (measured with Poker Servo Test: Triangle = 1.0 = up)
-    static final double POKER_DOWN_DEGREES = 0;    // as far down as the servo can go
-    static final double POKER_UP   = POKER_UP_DEGREES / SERVO_RANGE_DEGREES;
-    static final double POKER_DOWN = POKER_DOWN_DEGREES / SERVO_RANGE_DEGREES;
-
-    static final double DRIVE_MAX_SPEED  = 1.0;
-    static final double DRIVE_SLOW_SPEED = 0.35;
-    static final double STICK_DEADZONE   = 0.5;
-
-    // Each D-pad left/right press changes the launcher speed by this many ticks/sec
-    static final double VELOCITY_TRIM_STEP = 25;
-    static final int READY_RUMBLE_MS = 200;
-
-    static final double TELEOP_SECONDS = 120;
-    static final double FLOWER_NECTAR_ALLOWED_SECONDS_LEFT = 60;
-    static final double PARK_WARNING_SECONDS_LEFT = 20;
+    static final double TELEOP_SECONDS = BiobuzzTeleOp.TELEOP_SECONDS;
+    static final double FLOWER_NECTAR_ALLOWED_SECONDS_LEFT = BiobuzzTeleOp.FLOWER_NECTAR_ALLOWED_SECONDS_LEFT;
+    static final double PARK_WARNING_SECONDS_LEFT = BiobuzzTeleOp.PARK_WARNING_SECONDS_LEFT;
 
     private DcMotor   leftDrive;
     private DcMotor   rightDrive;
@@ -80,7 +66,6 @@ public abstract class TWO_GamepadOpMode extends LinearOpMode {
     private DcMotorEx launcherMotor;
     private CRServo   feederServo;
     private ServoImplEx pokerServo;
-    private HiveAimer aimer;
 
     private final ElapsedTime matchTimer = new ElapsedTime();
 
@@ -95,14 +80,8 @@ public abstract class TWO_GamepadOpMode extends LinearOpMode {
     private boolean lastDpadRight = false;
     private boolean lastShotReady = false;
 
-    private final boolean isBlue;
-    private boolean autoAiming = false;
     private double launcherTarget = LAUNCHER_TARGET_VELOCITY;
     private double velocityTrim = 0;
-
-    protected TWO_GamepadOpMode(boolean isBlue) {
-        this.isBlue = isBlue;
-    }
 
     @Override
     public void runOpMode() {
@@ -113,7 +92,6 @@ public abstract class TWO_GamepadOpMode extends LinearOpMode {
         feederServo = hardwareMap.get(CRServo.class, "feederServo");
         pokerServo  = hardwareMap.get(ServoImplEx.class, "pokerServo");
         pokerServo.setPwmRange(new PwmControl.PwmRange(500, 2500));
-        aimer       = new HiveAimer(hardwareMap, isBlue);
 
         // Flip any of these if that mechanism runs backwards
         leftDrive.setDirection(DcMotor.Direction.REVERSE);
@@ -133,19 +111,12 @@ public abstract class TWO_GamepadOpMode extends LinearOpMode {
         // Stand the poker upright as soon as the OpMode is INITed. Nothing else moves during INIT (G403).
         pokerServo.setPosition(POKER_UP);
 
-        // While waiting for START, show whether the camera can see our HIVE
-        while (!isStarted() && !isStopRequested()) {
-            aimer.update();
-
-            telemetry.addData("Status", "Initialized. Press START when TELEOP begins.");
-            telemetry.addData("Alliance", isBlue ? "BLUE" : "RED");
-            aimer.addTelemetry(telemetry);
-            telemetry.update();
-        }
+        telemetry.addData("Status", "Initialized. Press START when TELEOP begins.");
+        telemetry.update();
+        waitForStart();
         matchTimer.reset();
 
         while (opModeIsActive()) {
-            aimer.update();
             drive();
             boolean launcherReady = runLauncher();
             runPoker();
@@ -156,16 +127,10 @@ public abstract class TWO_GamepadOpMode extends LinearOpMode {
         stopAll();
     }
 
-    /** Driver (gamepad1) only drives the robot, and can hand turning over to auto-aim. */
+    /** Driver (gamepad1) only drives the robot. */
     private void drive() {
         double forward = applyDeadzone(-gamepad1.left_stick_y);
         double turn    = applyDeadzone(gamepad1.right_stick_x);
-
-        // Auto-aim takes over turning only while the HIVE is in view; otherwise the driver keeps control
-        autoAiming = gamepad1.right_trigger > 0.5 && aimer.hasTarget();
-        if (autoAiming) {
-            turn = aimer.getTurnPower();
-        }
 
         double left  = forward + turn;
         double right = forward - turn;
@@ -205,8 +170,8 @@ public abstract class TWO_GamepadOpMode extends LinearOpMode {
         lastDpadLeft = gamepad2.dpad_left;
 
         // ---------------- Launcher ----------------
-        // Speed comes from the distance to the HIVE when the camera sees it, plus the operator's trim
-        launcherTarget = aimer.getLauncherVelocity(LAUNCHER_TARGET_VELOCITY) + velocityTrim;
+        // Fixed speed plus the operator's D-pad trim
+        launcherTarget = LAUNCHER_TARGET_VELOCITY + velocityTrim;
         // Only ever spins in the shooting direction
         if (launching || launcherOn) {
             launcherMotor.setVelocity(launcherTarget);
@@ -217,8 +182,8 @@ public abstract class TWO_GamepadOpMode extends LinearOpMode {
                 Math.abs(launcherMotor.getVelocity() - launcherTarget) < LAUNCHER_READY_TOLERANCE;
 
         // ---------------- Feeder ----------------
-        // While the driver auto-aims, hold the shot until the robot is lined up so POLLEN isn't launched mid-turn
-        boolean feeding = launching && launcherReady && (!autoAiming || aimer.isAimed());
+        // Feed only once the launcher is at full speed
+        boolean feeding = launching && launcherReady;
         // Feeder is controlled separately from the intake. D-pad overrides the X toggle while held.
         if (gamepad2.dpad_down) {
             feederServo.setPower(-FEEDER_POWER);
@@ -247,9 +212,9 @@ public abstract class TWO_GamepadOpMode extends LinearOpMode {
         }
     }
 
-    /** Short rumble on both gamepads the moment the robot is aimed at the HIVE and the launcher is at speed. */
+    /** Short rumble on both gamepads the moment the launcher reaches full speed. */
     private void rumbleWhenReady(boolean launcherReady) {
-        boolean shotReady = aimer.isAimed() && launcherReady && launcherMotor.getVelocity() > 0;
+        boolean shotReady = launcherReady && launcherMotor.getVelocity() > 0;
         if (shotReady && !lastShotReady) {
             gamepad1.rumble(READY_RUMBLE_MS);
             gamepad2.rumble(READY_RUMBLE_MS);
@@ -266,8 +231,6 @@ public abstract class TWO_GamepadOpMode extends LinearOpMode {
         } else if (secondsLeft <= FLOWER_NECTAR_ALLOWED_SECONDS_LEFT) {
             telemetry.addLine(">>> NECTAR into FLOWERS now allowed <<<");
         }
-        aimer.addTelemetry(telemetry);
-        telemetry.addData("Auto-aim", autoAiming ? (aimer.isAimed() ? "LOCKED" : "TURNING") : "off");
         telemetry.addData("Launcher", "%.0f / %.0f ticks/s %s %s",
                 launcherMotor.getVelocity(), launcherTarget, launcherReady ? "READY" : "",
                 launcherOn ? "(ON)" : "");
@@ -285,7 +248,6 @@ public abstract class TWO_GamepadOpMode extends LinearOpMode {
         intakeMotor.setPower(0);
         launcherMotor.setPower(0);
         feederServo.setPower(0);
-        aimer.close();
     }
 
     private double applyDeadzone(double value) {

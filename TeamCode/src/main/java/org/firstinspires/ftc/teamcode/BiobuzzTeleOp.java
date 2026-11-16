@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -22,7 +23,6 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *   Motors: leftDrive (port 0), rightDrive (port 1), launcherMotor (port 2, LAUNCHES POLLEN),
  *           intakeMotor (port 3, INTAKE - pulls POLLEN in)
  *   Servos: feederServo (port 0, continuous feeder), pokerServo (port 1, pollen poker)
- *   Camera: Webcam 1 (USB), facing the same way as the launcher
  *
  * Controls (gamepad1):
  *   Left stick Y    - drive forward / backward
@@ -33,21 +33,20 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *                     the launcher reaches full speed. Press again to stop both.
  *   D-pad up/down   - run feeder forward/reverse manually (hold)
  *   D-pad left/right- trim launcher speed down/up if shots land short/long
- *   X               - press to start feeder (feederServo), press again to stop
+ *   X (Square)      - DISABLED so it can't be pressed by mistake (set SQUARE_FEEDER_TOGGLE_ENABLED = true
+ *                     to make it toggle the feeder again)
  *   A / B           - pollen poker down / up
  *   Left trigger    - hold for slow, precise driving
- *   Right trigger   - hold to AUTO-AIM: Webcam 1 drives the robot to AIM_RANGE_INCHES from the HIVE at
- *                     AIM_BEARING_DEGREES. Gamepad rumbles when in position and the launcher is at speed.
- *                     The camera is not used at all unless this is held.
  *
- * Pick "BIOBUZZ TeleOp BLUE" or "BIOBUZZ TeleOp RED" on the Driver Station to match your alliance
- * (BiobuzzTeleOpBlue / BiobuzzTeleOpRed). The alliance decides which HIVE auto-aim looks at.
- * Launcher speed is always LAUNCHER_POWER (plus D-pad trim); the camera never changes it.
+ * The gamepad rumbles when the launcher reaches full speed.
+ * One program for both alliances (no camera / AprilTags needed).
+ * Launcher speed is always LAUNCHER_POWER (plus D-pad trim).
  */
-public abstract class BiobuzzTeleOp extends LinearOpMode {
+@TeleOp(name = "BIOBUZZ TeleOp", group = "BIOBUZZ")
+public class BiobuzzTeleOp extends LinearOpMode {
 
     // Launcher speed as a fraction of full speed (0.0 - 1.0), like INTAKE_POWER.
-    // Used when the camera can't see the HIVE. Tune on the field: raise it if shots fall short of the CELL.
+    // Tune on the field: raise it if shots fall short of the CELL.
     static final double LAUNCHER_POWER = 0.62;
     // Launcher motor's full speed in encoder ticks/sec. REV HD Hex Motor (no gearbox): 6000 RPM x 28 ticks = 2800.
     // Change this if the launcher uses a different motor or gearbox.
@@ -61,6 +60,8 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
     static final double FEEDER_POWER = 1.0;
     // Also run the intake while feeding, to push POLLEN up into the feeder
     static final boolean RUN_INTAKE_WHILE_FEEDING = true;
+    // Square (X) used to toggle the feeder; it's off so a stray press can't start the feeder
+    static final boolean SQUARE_FEEDER_TOGGLE_ENABLED = false;
 
     // REV Smart Robot Servo turns 270 degrees over a 500-2500 us pulse. The SDK defaults to 600-2400 us,
     // so the poker widens it in init to make these angles real degrees.
@@ -76,22 +77,6 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
     static final double DRIVE_SLOW_SPEED = 0.35;
     static final double STICK_DEADZONE   = 0.5;
 
-    // Auto-aim (hold right trigger) drives the robot to this spot in front of the HIVE.
-    // Values are what the "HIVE" telemetry line shows: distance in inches, and degrees (+ = HIVE to the LEFT).
-    static final double AIM_RANGE_INCHES   = 55.0;
-    static final double AIM_BEARING_DEGREES = 6.5;
-    // Counts as "in position" when this close to the spot
-    static final double AIM_RANGE_TOLERANCE_INCHES   = 2.0;
-    static final double AIM_BEARING_TOLERANCE_DEGREES = 2.0;
-    // Power = error x GAIN, clipped between MIN and MAX. Raise GAIN if sluggish, lower it if it wobbles.
-    static final double AIM_DRIVE_GAIN = 0.03;   // per inch
-    static final double AIM_TURN_GAIN  = 0.015;  // per degree
-    static final double AIM_MIN_POWER  = 0.08;   // smallest power that still moves the robot
-    static final double AIM_MAX_POWER  = 0.40;
-    // Webcam 1 faces the BACK of the robot, so driving toward the HIVE is "reverse" for the drive motors.
-    // Set to +1 if the camera is ever moved to face the front.
-    static final double AIM_DRIVE_DIRECTION = -1;
-
     // Each D-pad left/right press changes the launcher speed by this many ticks/sec
     static final double VELOCITY_TRIM_STEP = 25;
     static final int READY_RUMBLE_MS = 200;
@@ -106,7 +91,6 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
     private DcMotorEx launcherMotor;
     private CRServo   feederServo;
     private ServoImplEx pokerServo;
-    private HiveAimer aimer;
 
     private final ElapsedTime matchTimer = new ElapsedTime();
 
@@ -121,15 +105,8 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
     private boolean lastDpadRight = false;
     private boolean lastShotReady = false;
 
-    private final boolean isBlue;
-    private boolean autoAiming = false;
-    private boolean inPosition = false;
     private double launcherTarget = LAUNCHER_TARGET_VELOCITY;
     private double velocityTrim = 0;
-
-    protected BiobuzzTeleOp(boolean isBlue) {
-        this.isBlue = isBlue;
-    }
 
     @Override
     public void runOpMode() {
@@ -140,7 +117,6 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
         feederServo = hardwareMap.get(CRServo.class, "feederServo");
         pokerServo  = hardwareMap.get(ServoImplEx.class, "pokerServo");
         pokerServo.setPwmRange(new PwmControl.PwmRange(500, 2500));
-        aimer       = new HiveAimer(hardwareMap, isBlue);
 
         // Flip any of these if that mechanism runs backwards
         leftDrive.setDirection(DcMotor.Direction.REVERSE);
@@ -160,22 +136,12 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
         // Stand the poker upright as soon as the OpMode is INITed. Nothing else moves during INIT (G403).
         pokerServo.setPosition(POKER_UP);
 
-        // While waiting for START, show whether the camera can see our HIVE
-        while (!isStarted() && !isStopRequested()) {
-            aimer.update();
-
-            telemetry.addData("Status", "Initialized. Press START when TELEOP begins.");
-            telemetry.addData("Alliance", isBlue ? "BLUE" : "RED");
-            aimer.addTelemetry(telemetry);
-            telemetry.update();
-        }
+        telemetry.addData("Status", "Initialized. Press START when TELEOP begins.");
+        telemetry.update();
+        waitForStart();
         matchTimer.reset();
 
         while (opModeIsActive()) {
-            // The camera is only used while auto-aim (right trigger) is held
-            if (gamepad1.right_trigger > 0.5) {
-                aimer.update();
-            }
             drive();
             boolean launcherReady = runLauncher();
             runPoker();
@@ -187,28 +153,7 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
     }
 
     private void drive() {
-        // Auto-aim drives the robot to AIM_RANGE_INCHES / AIM_BEARING_DEGREES while the HIVE is in view.
-        // If the camera can't see the HIVE, the driver keeps control.
-        autoAiming = gamepad1.right_trigger > 0.5 && aimer.hasTarget();
-        inPosition = false;
-        if (autoAiming) {
-            double rangeError   = aimer.getRange() - AIM_RANGE_INCHES;        // + = too far away
-            double bearingError = aimer.getBearing() - AIM_BEARING_DEGREES;   // + = need to turn left
-            boolean rangeOk   = Math.abs(rangeError) <= AIM_RANGE_TOLERANCE_INCHES;
-            boolean bearingOk = Math.abs(bearingError) <= AIM_BEARING_TOLERANCE_DEGREES;
-            inPosition = rangeOk && bearingOk;
-
-            double aimForward = rangeOk ? 0 : AIM_DRIVE_DIRECTION * aimPower(rangeError * AIM_DRIVE_GAIN);
-            // Positive turn power turns right, so a target to the left needs negative power
-            double aimTurn    = bearingOk ? 0 : aimPower(-bearingError * AIM_TURN_GAIN);
-            // Use the auto-aim powers as-is, without the driver speed limit below
-            double max = Math.max(1.0, Math.max(Math.abs(aimForward + aimTurn), Math.abs(aimForward - aimTurn)));
-            leftDrive.setPower((aimForward + aimTurn) / max);
-            rightDrive.setPower((aimForward - aimTurn) / max);
-            return;
-        }
-
-        // Left stick is reversed so pushing it forward drives toward the launcher/camera end of the robot.
+        // Left stick is reversed so pushing it forward drives toward the launcher end of the robot.
         // (Stick Y is negative when pushed forward.) Remove the reversal by putting the minus sign back.
         double forward = applyDeadzone(gamepad1.left_stick_y);
         double turn    = applyDeadzone(gamepad1.right_stick_x);
@@ -233,7 +178,7 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
         if (gamepad1.right_bumper && !lastRightBumper) {
             intakeOn = !intakeOn;
         }
-        if (gamepad1.x && !lastX) {
+        if (SQUARE_FEEDER_TOGGLE_ENABLED && gamepad1.x && !lastX) {
             feederOn = !feederOn;
         }
         if (gamepad1.y && !lastY) {
@@ -252,7 +197,7 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
         lastDpadLeft = gamepad1.dpad_left;
 
         // ---------------- Launcher ----------------
-        // Fixed speed (LAUNCHER_POWER) plus the driver's D-pad trim. The camera does not change it.
+        // Fixed speed (LAUNCHER_POWER) plus the driver's D-pad trim
         launcherTarget = LAUNCHER_TARGET_VELOCITY + velocityTrim;
         // Only ever spins in the shooting direction
         if (launching) {
@@ -295,9 +240,9 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
         }
     }
 
-    /** Short rumble the moment auto-aim has the robot in position and the launcher is at speed. */
+    /** Short rumble the moment the launcher reaches full speed. */
     private void rumbleWhenReady(boolean launcherReady) {
-        boolean shotReady = inPosition && launcherReady && launcherMotor.getVelocity() > 0;
+        boolean shotReady = launcherReady && launcherMotor.getVelocity() > 0;
         if (shotReady && !lastShotReady) {
             gamepad1.rumble(READY_RUMBLE_MS);
         }
@@ -313,9 +258,6 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
         } else if (secondsLeft <= FLOWER_NECTAR_ALLOWED_SECONDS_LEFT) {
             telemetry.addLine(">>> NECTAR into FLOWERS now allowed <<<");
         }
-        aimer.addTelemetry(telemetry);
-        telemetry.addData("Auto-aim", autoAiming ? (inPosition ? "IN POSITION" : "MOVING")
-                : (gamepad1.right_trigger > 0.5 ? "HIVE not in view" : "off"));
         telemetry.addData("Launcher", "%.0f / %.0f ticks/s %s %s",
                 launcherMotor.getVelocity(), launcherTarget, launcherReady ? "READY" : "",
                 launcherOn ? "(ON)" : "");
@@ -333,17 +275,9 @@ public abstract class BiobuzzTeleOp extends LinearOpMode {
         intakeMotor.setPower(0);
         launcherMotor.setPower(0);
         feederServo.setPower(0);
-        aimer.close();
-    }
-
-    /** Clips an auto-aim power to AIM_MAX_POWER, but never below AIM_MIN_POWER so the robot doesn't stall. */
-    private double aimPower(double power) {
-        double clipped = Math.max(-AIM_MAX_POWER, Math.min(AIM_MAX_POWER, power));
-        return Math.abs(clipped) < AIM_MIN_POWER ? Math.copySign(AIM_MIN_POWER, clipped) : clipped;
     }
 
     private double applyDeadzone(double value) {
         return Math.abs(value) < STICK_DEADZONE ? 0.0 : value;
     }
 }
-// done
