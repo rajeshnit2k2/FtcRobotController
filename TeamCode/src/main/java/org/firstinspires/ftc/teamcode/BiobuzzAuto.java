@@ -78,10 +78,10 @@ public abstract class BiobuzzAuto extends LinearOpMode {
     static final double FAR_TURN1_DEGREES = -90;
     static final double FAR_CROSS_INCHES = 28;
     static final double FAR_TURN2_DEGREES = 90;
-    static final double FAR_PARK_INCHES = 80;
+    static final double FAR_PARK_INCHES = 75;
     // Then turn 90 degrees left and drive a little further
     static final double FAR_TURN3_DEGREES = -90;
-    static final double FAR_FINAL_INCHES = 25;
+    static final double FAR_FINAL_INCHES = 20;
 
     // Keep this low enough that the FAR park still finishes inside the 30 s AUTO
     static final int MAX_START_DELAY_SECONDS = 15;
