@@ -37,8 +37,9 @@ public abstract class BiobuzzAuto extends LinearOpMode {
     static final double LAUNCHER_READY_TOLERANCE = BiobuzzTeleOp.LAUNCHER_READY_TOLERANCE;
     // Longest we wait for the launcher to reach speed before shooting anyway
     static final double LAUNCHER_SPINUP_TIMEOUT_SECONDS = 3.0;
-    // Long enough to push all 4 pre-loads through the launcher
-    static final double FEED_SECONDS = 4.0;
+    // How long the feeder (and intake) run to push all 4 pre-loads through the launcher.
+    // Raise it if POLLEN is still left in the robot when it drives away.
+    static final double FEED_SECONDS = 10.0;
 
     // ---------------- Encoder driving ----------------
     // REV HD Hex Motor (28 ticks/rev) + 20:1 UltraPlanetary (real ratio 3.61 x 5.23 = 18.88), 90 mm wheels
@@ -62,22 +63,25 @@ public abstract class BiobuzzAuto extends LinearOpMode {
     static final double TURN_POWER = 0.4;
 
     // LEAVE: drive straight away from the wall (both NEAR and FAR)
-    static final double LEAVE_INCHES = 12;
+    static final double LEAVE_INCHES = 20;
 
     // Turn angles are for BLUE and mirrored automatically on RED.
-    // Positive degrees = the left wheel drives forward (robot turns right). Flip the sign if a turn goes the
-    // wrong way.
+    // Positive degrees = robot turns LEFT (seen from behind, looking toward the launcher end, which is the
+    // way it drives). Negative = RIGHT. Flip the sign if a turn goes the wrong way.
 
     // NEAR PARK: turn toward the closest LOADING ZONE, then drive into it
     static final double NEAR_TURN_DEGREES = 90;
-    static final double NEAR_PARK_INCHES = 24;
+    static final double NEAR_PARK_INCHES = 50;
 
     // FAR PARK (L-shaped, around the HIVE): turn away from the near zone, drive along the field past the
     // HIVE, then turn and drive into the diagonally opposite LOADING ZONE
     static final double FAR_TURN1_DEGREES = -90;
-    static final double FAR_CROSS_INCHES = 72;
+    static final double FAR_CROSS_INCHES = 28;
     static final double FAR_TURN2_DEGREES = 90;
-    static final double FAR_PARK_INCHES = 24;
+    static final double FAR_PARK_INCHES = 80;
+    // Then turn 90 degrees left and drive a little further
+    static final double FAR_TURN3_DEGREES = -90;
+    static final double FAR_FINAL_INCHES = 25;
 
     // Keep this low enough that the FAR park still finishes inside the 30 s AUTO
     static final int MAX_START_DELAY_SECONDS = 15;
@@ -120,6 +124,8 @@ public abstract class BiobuzzAuto extends LinearOpMode {
                 driveInches(FAR_CROSS_INCHES);
                 turnDegrees(FAR_TURN2_DEGREES);
                 driveInches(FAR_PARK_INCHES);
+                turnDegrees(FAR_TURN3_DEGREES);
+                driveInches(FAR_FINAL_INCHES);
             } else {
                 turnDegrees(NEAR_TURN_DEGREES);
                 driveInches(NEAR_PARK_INCHES);
