@@ -29,11 +29,11 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *   Right bumper    - press to start intake, press again to stop
  *   Y               - press to start launcher, press again to stop
  *   D-pad up/down   - run feeder forward/reverse manually (hold)
- *   D-pad left/right- trim launcher speed down/up if shots land short/long
+ *   D-pad left/right-trim launcher speed down/up if shots land short/long
  *   X               - press to start feeder (feederServo), press again to stop
  *   A / B           - pollen poker down / up
  *
- * Both gamepads rumble when the launcher reaches full speed.
+ * Both gamepads rumble when the launcher reaches full speed.nap
  * One program for both alliances (no camera / AprilTags needed).
  *
  * All motor/servo speeds and positions come from BiobuzzTeleOp, so the one-gamepad and two-gamepad

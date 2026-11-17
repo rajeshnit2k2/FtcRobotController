@@ -63,7 +63,7 @@ public abstract class BiobuzzAuto extends LinearOpMode {
     static final double TURN_POWER = 0.4;
 
     // LEAVE: drive straight away from the wall (both NEAR and FAR)
-    static final double LEAVE_INCHES = 20;
+    static final double LEAVE_INCHES = 15;
 
     // Turn angles are for BLUE and mirrored automatically on RED.
     // Positive degrees = robot turns LEFT (seen from behind, looking toward the launcher end, which is the
@@ -78,7 +78,7 @@ public abstract class BiobuzzAuto extends LinearOpMode {
     static final double FAR_TURN1_DEGREES = -90;
     static final double FAR_CROSS_INCHES = 28;
     static final double FAR_TURN2_DEGREES = 90;
-    static final double FAR_PARK_INCHES = 75;
+    static final double FAR_PARK_INCHES = 70;
     // Then turn 90 degrees left and drive a little further
     static final double FAR_TURN3_DEGREES = -90;
     static final double FAR_FINAL_INCHES = 20;

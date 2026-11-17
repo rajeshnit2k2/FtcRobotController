@@ -47,7 +47,7 @@ public class BiobuzzTeleOp extends LinearOpMode {
 
     // Launcher speed as a fraction of full speed (0.0 - 1.0), like INTAKE_POWER.
     // Tune on the field: raise it if shots fall short of the CELL.
-    static final double LAUNCHER_POWER = 0.62;
+    static final double LAUNCHER_POWER = 0.60;
     // Launcher motor's full speed in encoder ticks/sec. REV HD Hex Motor (no gearbox): 6000 RPM x 28 ticks = 2800.
     // Change this if the launcher uses a different motor or gearbox.
     static final double LAUNCHER_MAX_VELOCITY = 2000;
@@ -73,8 +73,8 @@ public class BiobuzzTeleOp extends LinearOpMode {
     static final double POKER_UP   = POKER_UP_DEGREES / SERVO_RANGE_DEGREES;
     static final double POKER_DOWN = POKER_DOWN_DEGREES / SERVO_RANGE_DEGREES;
 
-    static final double DRIVE_MAX_SPEED  = 0.70;
-    static final double DRIVE_SLOW_SPEED = 0.35;
+    static final double DRIVE_MAX_SPEED  = 1.00;
+    static final double DRIVE_SLOW_SPEED = 0.25;
     static final double STICK_DEADZONE   = 0.5;
 
     // Each D-pad left/right press changes the launcher speed by this many ticks/sec
