@@ -39,7 +39,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  * All motor/servo speeds and positions come from BiobuzzTeleOp, so the one-gamepad and two-gamepad
  * TeleOps always behave the same. Tune them in BiobuzzTeleOp.
  */
-@TeleOp(name = "BIOBUZZ TeleOp 2 Gamepads", group = "BIOBUZZ")
+//@TeleOp(name = "BIOBUZZ TeleOp 2 Gamepads", group = "BIOBUZZ")
 public class TWO_GamepadOpMode extends LinearOpMode {
 
     // Shared with BiobuzzTeleOp - change them there

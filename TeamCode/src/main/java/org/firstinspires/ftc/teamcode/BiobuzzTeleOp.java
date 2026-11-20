@@ -42,7 +42,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  * One program for both alliances (no camera / AprilTags needed).
  * Launcher speed is always LAUNCHER_POWER (plus D-pad trim).
  */
-@TeleOp(name = "BIOBUZZ TeleOp", group = "BIOBUZZ")
+@TeleOp(name = "Technoblades TeleOp", group = "BIOBUZZ")
 public class BiobuzzTeleOp extends LinearOpMode {
 
     // Launcher speed as a fraction of full speed (0.0 - 1.0), like INTAKE_POWER.
